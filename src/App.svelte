@@ -48,6 +48,13 @@
   const advancedTypes: AdvancedType[] = ['brew', 'cask', 'tap', 'mas', 'raw']
   const installHomebrewCommand =
     '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+  const selectedPackageTypeOrder: Record<PackageType, number> = {
+    tap: 0,
+    brew: 1,
+    cask: 2,
+    mas: 3,
+  }
+  const selectedPackageCollator = new Intl.Collator('en', { numeric: true, sensitivity: 'base' })
   const homebrewUrl = 'https://brew.sh/'
   const githubRepositoryUrl = 'https://github.com/miz77/brewfile-picker'
   const commitSha = import.meta.env.VITE_COMMIT_SHA
@@ -181,6 +188,8 @@
   }
 
   $: selectedPackages = getSelectedPackages(pickerState)
+  $: sortedSelectedPackages = [...selectedPackages].sort(compareSelectedPackages)
+  $: sortedPassthroughEntries = [...pickerState.passthrough].sort((a, b) => compareText(a.line, b.line))
   $: selectedPackageKeys = new Set(selectedPackages.map(packageKey))
   $: presetPackageKeys = new Set(
     pickerState.packages.filter((pkg) => pkg.source === 'preset').map(packageKey),
@@ -246,6 +255,14 @@
       tap: 'border-amber-200 bg-amber-50 text-amber-800',
       mas: 'border-emerald-200 bg-emerald-50 text-emerald-800',
     }[type]
+  }
+
+  function compareText(a: string, b: string): number {
+    return selectedPackageCollator.compare(a, b) || a.localeCompare(b)
+  }
+
+  function compareSelectedPackages(a: PickerPackage, b: PickerPackage): number {
+    return selectedPackageTypeOrder[a.type] - selectedPackageTypeOrder[b.type] || compareText(a.token, b.token)
   }
 
   function formatLocalDateTime(value: string): string {
@@ -1056,7 +1073,7 @@
               <p class="p-4 text-sm text-zinc-500">{t('selected.empty')}</p>
             {:else}
               <ul class="max-h-64 divide-y divide-zinc-100 overflow-auto">
-                {#each selectedPackages as pkg}
+                {#each sortedSelectedPackages as pkg}
                   <li class="flex items-center gap-3 px-4 py-2.5">
                     <span class={`rounded border px-1.5 py-0.5 text-[11px] font-medium ${typeBadgeClass(pkg.type)}`}>
                       {typeLabel(pkg.type)}
@@ -1072,7 +1089,7 @@
                     </button>
                   </li>
                 {/each}
-                {#each pickerState.passthrough as entry}
+                {#each sortedPassthroughEntries as entry}
                   <li class="flex items-center gap-3 px-4 py-2.5">
                     <span class="rounded border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[11px] font-medium text-zinc-700">
                       raw

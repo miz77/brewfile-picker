@@ -23,12 +23,25 @@ async function removeSelectedPackage(page: Page, token: string) {
   await selectedItem(page, token).getByRole('button', { name: '解除' }).click()
 }
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 function selectedItem(page: Page, token: string) {
+  return selectedListItems(page).filter({
+    has: page.getByText(new RegExp(`^${escapeRegExp(token)}$`)),
+  })
+}
+
+function selectedListItems(page: Page) {
   return page
     .getByRole('heading', { name: /選択中の項目/ })
     .locator('xpath=ancestor::section[1]')
     .getByRole('listitem')
-    .filter({ hasText: token })
+}
+
+function selectedTokenLabels(page: Page) {
+  return selectedListItems(page).locator('span:nth-of-type(2)')
 }
 
 async function dropBrewfile(page: Page, content: string) {
@@ -142,8 +155,10 @@ test('opens the lab preset and updates selection', async ({ page }) => {
   ).toBeVisible()
   await expect(page.getByText(/brew [\d,]+ \/ cask [\d,]+/)).toBeVisible()
   await expect(page.getByText(/パッケージ情報取得/)).toBeVisible()
+  await expect(selectedItem(page, 'gh')).toBeVisible()
   await expect(selectedItem(page, 'git')).toBeVisible()
   await expect(selectedItem(page, 'python')).toBeVisible()
+  await expect(selectedItem(page, 'ghostty')).toBeVisible()
   await expect(selectedItem(page, 'visual-studio-code')).toBeVisible()
 
   await page.getByRole('button', { name: '選択中の項目を折りたたむ' }).click()
@@ -253,7 +268,9 @@ test('creates and restores a share URL without preserving mas or raw lines', asy
 
   await page.goto('about:blank')
   await page.goto(shareUrl)
+  await expect(selectedItem(page, 'gh')).toBeVisible()
   await expect(selectedItem(page, 'python')).toBeVisible()
+  await expect(selectedItem(page, 'ghostty')).toBeVisible()
   await expect(selectedItem(page, 'visual-studio-code')).toBeVisible()
   await expect(selectedItem(page, 'git')).toHaveCount(0)
   await expect(selectedItem(page, 'Xcode')).toHaveCount(0)
@@ -323,6 +340,18 @@ test('adds advanced tap, mas, and raw entries', async ({ page }) => {
   await page.getByLabel('種類').selectOption('raw')
   await page.getByLabel('token / raw line').fill('vscode "svelte.svelte-vscode"')
   await page.getByRole('button', { name: '追加' }).click()
+
+  await expect(selectedTokenLabels(page)).toHaveText([
+    'homebrew/cask-fonts',
+    'gh',
+    'git',
+    'python',
+    'ghostty',
+    'visual-studio-code',
+    'Xcode',
+    'vscode "svelte.svelte-vscode"',
+  ])
+
   await expect(downloadBrewfileText(page)).resolves.toContain('vscode "svelte.svelte-vscode"')
 })
 
