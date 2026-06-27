@@ -1,7 +1,6 @@
 {
   "app.title": "Brewfile Picker",
-  "app.kicker": "Homebrew セットアップ支援",
-  "app.description": "研究室やチームのプリセットから必要な Homebrew パッケージを選び、Brewfile を作成するための静的 Web アプリです。",
+  "app.description": "Homebrew パッケージを検索・選択し、プリセットや既存 Brewfile をもとに Brewfile を作成・共有できる静的 Web アプリです。",
   "preset.current": "現在のプリセット",
   "preset.select": "プリセット",
   "preset.changed": "に切り替えました。",

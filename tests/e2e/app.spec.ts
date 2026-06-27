@@ -160,6 +160,14 @@ test('opens the lab preset and updates selection', async ({ page }) => {
   expect(externalRequests).toEqual([])
 })
 
+test('opens the blank preset on the root route', async ({ page }) => {
+  await page.goto('/')
+
+  await expect(page.getByLabel('プリセット')).toHaveValue('blank')
+  await expect(page.getByText('まだ何も選択されていません。')).toBeVisible()
+  await expect(selectedItem(page, 'git')).toHaveCount(0)
+})
+
 test('switches presets from the preset selector', async ({ page }) => {
   await page.goto('/p/lab-2026')
   await expect(selectedItem(page, 'git')).toBeVisible()
@@ -265,8 +273,11 @@ test('offers localStorage restore on the default route', async ({ page }) => {
 
   await page.goto('/')
   await expect(page.getByText('前回の作業がこのブラウザに残っています。')).toBeVisible()
-  await expect(selectedItem(page, 'git')).toBeVisible()
+  await expect(page.getByLabel('プリセット')).toHaveValue('blank')
+  await expect(page.getByText('まだ何も選択されていません。')).toBeVisible()
+  await expect(selectedItem(page, 'git')).toHaveCount(0)
   await page.getByRole('button', { name: '復元' }).click()
+  await expect(page).toHaveURL(/\/p\/lab-2026$/)
   await expect(selectedItem(page, 'git')).toHaveCount(0)
 })
 

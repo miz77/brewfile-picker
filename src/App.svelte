@@ -44,7 +44,7 @@
 
   const routePresetId = getPresetIdFromPath(window.location.pathname)
   const availablePresets = listPresets()
-  const initialPreset = getPresetById(routePresetId ?? 'lab-2026')
+  const initialPreset = getPresetById(routePresetId ?? 'blank')
   const advancedTypes: AdvancedType[] = ['brew', 'cask', 'tap', 'mas', 'raw']
   const installHomebrewCommand =
     '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
@@ -705,8 +705,7 @@
   <div class="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-3 sm:px-6 lg:px-8">
     <header class="flex flex-col gap-3 border-b border-zinc-200 pb-4 sm:flex-row sm:items-start sm:justify-between">
       <div class="max-w-3xl">
-        <p class="text-xs font-medium text-[var(--brand-strong)]">{t('app.kicker')}</p>
-        <h1 class="mt-1 text-2xl font-semibold tracking-normal text-zinc-950 sm:text-3xl">
+        <h1 class="text-2xl font-semibold tracking-normal text-zinc-950 sm:text-3xl">
           {t('app.title')}
         </h1>
         <p class="mt-2 max-w-2xl text-sm leading-6 text-zinc-600">

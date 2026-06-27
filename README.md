@@ -1,6 +1,6 @@
 # Brewfile Picker
 
-Brewfile Picker is a static web app for building Homebrew `Brewfile`s from curated presets.
+Brewfile Picker is a static web app for searching and selecting Homebrew packages, then creating and sharing a `Brewfile` from presets or an existing `Brewfile`.
 
 This project is not affiliated with the Homebrew project. It uses Homebrew metadata to help users prepare a `Brewfile`; installing the generated file remains the user's responsibility.
 
