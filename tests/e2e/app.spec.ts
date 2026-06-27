@@ -150,6 +150,14 @@ test('opens the lab preset and updates selection', async ({ page }) => {
   await expect(selectedItem(page, 'python')).toBeVisible()
   await expect(selectedItem(page, 'visual-studio-code')).toBeVisible()
 
+  await page.getByRole('button', { name: '選択中の項目を折りたたむ' }).click()
+  await expect(selectedItem(page, 'git')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'リンクをコピー' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'ダウンロード' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'インストール手順' })).toBeVisible()
+  await page.getByRole('button', { name: '選択中の項目を展開' }).click()
+  await expect(selectedItem(page, 'git')).toBeVisible()
+
   await removeSelectedPackage(page, 'git')
   await expect(selectedItem(page, 'git')).toHaveCount(0)
 

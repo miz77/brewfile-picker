@@ -50,6 +50,8 @@
   "selected.title": "選択中の項目",
   "selected.empty": "まだ何も選択されていません。",
   "selected.remove": "解除",
+  "selected.collapse": "選択中の項目を折りたたむ",
+  "selected.expand": "選択中の項目を展開",
   "warning.title": "確認が必要な項目",
   "warning.replacement": "代替:",
   "share.title": "共有",

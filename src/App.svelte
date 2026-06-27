@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Check, Clipboard, Link } from '@lucide/svelte'
+  import { Check, ChevronDown, ChevronUp, Clipboard, Link } from '@lucide/svelte'
   import { onDestroy, onMount } from 'svelte'
   import { createStateFromParsedBrewfile, mergeParsedBrewfileIntoState } from './lib/brewfile-parser/importState'
   import { parseBrewfile, type ParsedBrewfile } from './lib/brewfile-parser/parser'
@@ -81,6 +81,7 @@
   let advancedMasId = ''
   let advancedError = ''
   let isDragActive = false
+  let isSelectedListCollapsed = false
   let showDisabledDownloadDialog = false
   let dragDepth = 0
   let pendingStoredState: StoredPickerState | null = null
@@ -974,10 +975,29 @@
       <aside class="flex min-w-0 flex-col gap-4">
         <section class="rounded-md border border-zinc-200 bg-white shadow-sm">
           <div class="flex flex-col gap-3 border-b border-zinc-200 px-4 py-3">
-            <h2 class="text-base font-semibold text-zinc-950">
-              {t('selected.title')}
-              <span class="ml-2 text-sm font-normal text-zinc-500">{selectedPackages.length}</span>
-            </h2>
+            <div class="flex items-center justify-between gap-3">
+              <h2 class="text-base font-semibold text-zinc-950">
+                {t('selected.title')}
+                <span class="ml-2 text-sm font-normal text-zinc-500">{selectedPackages.length}</span>
+              </h2>
+              <button
+                type="button"
+                class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-zinc-300 text-zinc-700 outline-none transition hover:border-zinc-400 hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2"
+                aria-controls="selected-package-list"
+                aria-expanded={!isSelectedListCollapsed}
+                aria-label={isSelectedListCollapsed ? t('selected.expand') : t('selected.collapse')}
+                title={isSelectedListCollapsed ? t('selected.expand') : t('selected.collapse')}
+                onclick={() => {
+                  isSelectedListCollapsed = !isSelectedListCollapsed
+                }}
+              >
+                {#if isSelectedListCollapsed}
+                  <ChevronDown class="h-4 w-4" aria-hidden="true" />
+                {:else}
+                  <ChevronUp class="h-4 w-4" aria-hidden="true" />
+                {/if}
+              </button>
+            </div>
             <div class="grid w-full gap-2" style="grid-template-columns: minmax(0, 1.2fr) minmax(7rem, 0.8fr);">
               <button
                 type="button"
@@ -1007,42 +1027,44 @@
           {#if shareMessage}
             <p class="border-b border-zinc-100 px-4 py-2 text-sm leading-6 text-amber-700">{shareMessage}</p>
           {/if}
-          {#if selectedPackages.length === 0 && pickerState.passthrough.length === 0}
-            <p class="p-4 text-sm text-zinc-500">{t('selected.empty')}</p>
-          {:else}
-            <ul class="max-h-64 divide-y divide-zinc-100 overflow-auto">
-              {#each selectedPackages as pkg}
-                <li class="flex items-center gap-3 px-4 py-2.5">
-                  <span class={`rounded border px-1.5 py-0.5 text-[11px] font-medium ${typeBadgeClass(pkg.type)}`}>
-                    {typeLabel(pkg.type)}
-                  </span>
-                  <span class="min-w-0 flex-1 truncate text-sm text-zinc-900">{pkg.token}</span>
-                  <button
-                    type="button"
-                    class="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium text-zinc-700"
-                    onclick={() => removeSelectedPackage(pkg)}
-                  >
-                    {t('selected.remove')}
-                  </button>
-                </li>
-              {/each}
-              {#each pickerState.passthrough as entry}
-                <li class="flex items-center gap-3 px-4 py-2.5">
-                  <span class="rounded border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[11px] font-medium text-zinc-700">
-                    raw
-                  </span>
-                  <span class="min-w-0 flex-1 truncate font-mono text-sm text-zinc-900">{entry.line}</span>
-                  <button
-                    type="button"
-                    class="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium text-zinc-700"
-                    onclick={() => removePassthroughEntry(entry.id)}
-                  >
-                    {t('selected.remove')}
-                  </button>
-                </li>
-              {/each}
-            </ul>
-          {/if}
+          <div id="selected-package-list" hidden={isSelectedListCollapsed}>
+            {#if selectedPackages.length === 0 && pickerState.passthrough.length === 0}
+              <p class="p-4 text-sm text-zinc-500">{t('selected.empty')}</p>
+            {:else}
+              <ul class="max-h-64 divide-y divide-zinc-100 overflow-auto">
+                {#each selectedPackages as pkg}
+                  <li class="flex items-center gap-3 px-4 py-2.5">
+                    <span class={`rounded border px-1.5 py-0.5 text-[11px] font-medium ${typeBadgeClass(pkg.type)}`}>
+                      {typeLabel(pkg.type)}
+                    </span>
+                    <span class="min-w-0 flex-1 truncate text-sm text-zinc-900">{pkg.token}</span>
+                    <button
+                      type="button"
+                      class="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium text-zinc-700"
+                      onclick={() => removeSelectedPackage(pkg)}
+                    >
+                      {t('selected.remove')}
+                    </button>
+                  </li>
+                {/each}
+                {#each pickerState.passthrough as entry}
+                  <li class="flex items-center gap-3 px-4 py-2.5">
+                    <span class="rounded border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[11px] font-medium text-zinc-700">
+                      raw
+                    </span>
+                    <span class="min-w-0 flex-1 truncate font-mono text-sm text-zinc-900">{entry.line}</span>
+                    <button
+                      type="button"
+                      class="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium text-zinc-700"
+                      onclick={() => removePassthroughEntry(entry.id)}
+                    >
+                      {t('selected.remove')}
+                    </button>
+                  </li>
+                {/each}
+              </ul>
+            {/if}
+          </div>
         </section>
 
         {#if selectedWarningRows.length > 0}
