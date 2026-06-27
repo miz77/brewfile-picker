@@ -101,7 +101,7 @@
   "install.bundlePending": "Brewfile をダウンロードすると、実行用コマンドがここに表示されます。",
   "install.bundleNote": "通常は Downloads に保存されます。保存先を変えた場合は、その場所を指定してください。",
   "install.bundleNoteCollision": "同名ファイルがある場合は、Downloads 内の実際のファイル名に合わせてください。",
-  "privacy.title": "ブラウザ内で処理します",
+  "privacy.title": "ブラウザ内で処理します。",
   "privacy.browserOnly": "Brewfile の読み込み、編集、生成はブラウザ内で行い、サーバーへ送信しません。",
   "footer.homebrewThanksBefore": "Unofficial app using ",
   "footer.homebrewThanksAfter": " package metadata. Thanks to Homebrew contributors.",
