@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Check, Clipboard } from '@lucide/svelte'
   import { onDestroy, onMount } from 'svelte'
   import { createStateFromParsedBrewfile, mergeParsedBrewfileIntoState } from './lib/brewfile-parser/importState'
   import { parseBrewfile, type ParsedBrewfile } from './lib/brewfile-parser/parser'
@@ -33,6 +34,7 @@
 
   type IndexStatus = 'loading' | 'ready' | 'missing' | 'error'
   type AdvancedType = PackageType | 'raw'
+  type CopyTarget = 'brewfile' | 'install-homebrew' | 'install-bundle' | 'share-url'
 
   const routePresetId = getPresetIdFromPath(window.location.pathname)
   const availablePresets = listPresets()
@@ -40,7 +42,7 @@
   const advancedTypes: AdvancedType[] = ['brew', 'cask', 'tap', 'mas', 'raw']
   const installHomebrewCommand =
     '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
-  const runBrewBundleCommand = 'brew bundle --file Brewfile'
+  const githubRepositoryUrl = 'https://github.com/miz77/brewfile-picker'
 
   let activePreset = initialPreset
   let pickerState = createPickerStateFromPreset(activePreset)
@@ -52,6 +54,8 @@
   let startupMessage = ''
   let shareUrl = ''
   let shareMessage = ''
+  let copiedTarget: CopyTarget | null = null
+  let downloadedBrewfileFilename = ''
   let importError = ''
   let parsedImport: ParsedBrewfile | null = null
   let advancedType: AdvancedType = 'brew'
@@ -63,7 +67,10 @@
   let dragDepth = 0
   let pendingStoredState: StoredPickerState | null = null
   let autoSaveEnabled = false
+  let lastDownloadBaseFilename = ''
+  let lastDownloadSequence = 0
   let saveTimer: number | undefined
+  let copyStatusTimer: number | undefined
 
   onMount(() => {
     void initializeState()
@@ -73,6 +80,9 @@
   onDestroy(() => {
     if (saveTimer !== undefined) {
       window.clearTimeout(saveTimer)
+    }
+    if (copyStatusTimer !== undefined) {
+      window.clearTimeout(copyStatusTimer)
     }
   })
 
@@ -128,6 +138,9 @@
     limit: 12,
   })
   $: brewfilePreview = exportBrewfile(pickerState)
+  $: runBrewBundleCommand = downloadedBrewfileFilename
+    ? `brew bundle --file "$HOME/Downloads/${downloadedBrewfileFilename}"`
+    : ''
   $: importPackageCount = parsedImport?.packages.length ?? 0
   $: importPassthroughCount = parsedImport?.passthrough.length ?? 0
   $: selectedWarningRows = selectedPackages.flatMap((pkg) =>
@@ -211,21 +224,62 @@
     shareMessage = ''
   }
 
-  async function copyText(text: string, label: string) {
+  function showCopied(target: CopyTarget) {
+    copiedTarget = target
+    if (copyStatusTimer !== undefined) {
+      window.clearTimeout(copyStatusTimer)
+    }
+    copyStatusTimer = window.setTimeout(() => {
+      copiedTarget = null
+      copyStatusTimer = undefined
+    }, 1600)
+  }
+
+  async function copyText(text: string, label: string, target: CopyTarget) {
     try {
       await navigator.clipboard.writeText(text)
+      showCopied(target)
       liveMessage = `${label} ${t('live.copied')}`
     } catch {
       liveMessage = t('live.copyFailed')
     }
   }
 
+  function createLocalTimestamp(date: Date): string {
+    const pad = (value: number) => String(value).padStart(2, '0')
+    return [
+      date.getFullYear(),
+      pad(date.getMonth() + 1),
+      pad(date.getDate()),
+      '-',
+      pad(date.getHours()),
+      pad(date.getMinutes()),
+      pad(date.getSeconds()),
+    ].join('')
+  }
+
+  function createDownloadFilename(): string {
+    const timestamp = createLocalTimestamp(new Date())
+    const baseFilename = `Brewfile-${timestamp}`
+
+    if (baseFilename !== lastDownloadBaseFilename) {
+      lastDownloadBaseFilename = baseFilename
+      lastDownloadSequence = 1
+      return baseFilename
+    }
+
+    lastDownloadSequence += 1
+    return `${baseFilename}-${lastDownloadSequence}`
+  }
+
   function triggerBrewfileDownload() {
+    const filename = createDownloadFilename()
+    downloadedBrewfileFilename = filename
     const blob = new Blob([`${brewfilePreview}\n`], { type: 'application/octet-stream' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = 'Brewfile'
+    link.download = filename
     link.click()
     URL.revokeObjectURL(url)
     liveMessage = t('live.downloaded')
@@ -305,7 +359,7 @@
     }
     shareMessage = messages.join(' ')
     if (shareUrl.length <= 8000) {
-      await copyText(shareUrl, t('share.url'))
+      await copyText(shareUrl, t('share.url'), 'share-url')
     }
   }
 
@@ -495,6 +549,11 @@
 
 <svelte:head>
   <title>{t('app.title')}</title>
+  <link
+    rel="stylesheet"
+    type="text/css"
+    href="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/devicon.min.css"
+  />
 </svelte:head>
 
 <svelte:window
@@ -506,6 +565,18 @@
 
 <main class="min-h-svh bg-stone-50 text-zinc-950">
   <div class="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8">
+    <div class="flex justify-end">
+      <a
+        class="inline-flex h-8 w-8 items-center justify-center rounded-md text-2xl text-zinc-700 outline-none transition hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50"
+        href={githubRepositoryUrl}
+        target="_blank"
+        rel="noreferrer"
+        aria-label="GitHub repositoryを開く"
+      >
+        <i class="devicon-github-original" aria-hidden="true"></i>
+      </a>
+    </div>
+
     <header class="flex flex-col gap-4 border-b border-zinc-200 pb-5 lg:flex-row lg:items-end lg:justify-between">
       <div class="max-w-3xl">
         <p class="text-sm font-medium text-teal-700">{t('app.kicker')}</p>
@@ -716,14 +787,25 @@
               <span class="ml-2 text-sm font-normal text-zinc-500">{selectedPackages.length}</span>
             </h2>
             <div class="flex shrink-0 gap-2">
-              <button
-                type="button"
-                class="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={brewfilePreview.length === 0}
-                onclick={() => copyText(brewfilePreview, 'Brewfile')}
-              >
-                {t('brewfile.copy')}
-              </button>
+              <div class="flex items-center gap-2">
+                <button
+                  type="button"
+                  class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-zinc-300 text-zinc-700 outline-none transition hover:border-zinc-400 hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={brewfilePreview.length === 0}
+                  title={t('brewfile.copy')}
+                  aria-label="Brewfile をコピー"
+                  onclick={() => copyText(brewfilePreview, 'Brewfile', 'brewfile')}
+                >
+                  {#if copiedTarget === 'brewfile'}
+                    <Check class="h-4 w-4 text-emerald-700" aria-hidden="true" />
+                  {:else}
+                    <Clipboard class="h-4 w-4" aria-hidden="true" />
+                  {/if}
+                </button>
+                {#if copiedTarget === 'brewfile'}
+                  <span class="text-xs font-medium text-emerald-700">Copied!</span>
+                {/if}
+              </div>
               <button
                 type="button"
                 class="rounded-md bg-teal-700 px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
@@ -789,14 +871,82 @@
         {/if}
 
         <section class="rounded-md border border-zinc-200 bg-white p-4 shadow-sm">
+          <h2 class="text-base font-semibold text-zinc-950">{t('install.title')}</h2>
+          <div class="mt-3 space-y-3">
+            <div>
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <p class="text-sm font-medium text-zinc-800">{t('install.homebrew')}</p>
+                  <p class="mt-0.5 text-xs leading-5 text-zinc-500">{t('install.homebrewNote')}</p>
+                </div>
+                <button
+                  type="button"
+                  class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-zinc-300 text-zinc-700 outline-none transition hover:border-zinc-400 hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+                  title={t('brewfile.copy')}
+                  aria-label={`${t('install.homebrew')}をコピー`}
+                  onclick={() => copyText(installHomebrewCommand, t('install.homebrew'), 'install-homebrew')}
+                >
+                  {#if copiedTarget === 'install-homebrew'}
+                    <Check class="h-4 w-4 text-emerald-700" aria-hidden="true" />
+                  {:else}
+                    <Clipboard class="h-4 w-4" aria-hidden="true" />
+                  {/if}
+                </button>
+              </div>
+              {#if copiedTarget === 'install-homebrew'}
+                <p class="mt-1 text-right text-xs font-medium text-emerald-700">Copied!</p>
+              {/if}
+              <pre class="mt-2 overflow-auto rounded-md bg-zinc-950 p-3 text-xs leading-5 text-zinc-50"><code>{installHomebrewCommand}</code></pre>
+            </div>
+            <div class="border-t border-zinc-100 pt-3">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <p class="text-sm font-medium text-zinc-800">{t('install.bundle')}</p>
+                  <p class="mt-0.5 text-xs leading-5 text-zinc-500">
+                    {downloadedBrewfileFilename ? t('install.bundleNote') : t('install.bundlePending')}
+                  </p>
+                </div>
+                {#if downloadedBrewfileFilename}
+                  <button
+                    type="button"
+                    class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-zinc-300 text-zinc-700 outline-none transition hover:border-zinc-400 hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+                    title={t('brewfile.copy')}
+                    aria-label={`${t('install.bundle')}をコピー`}
+                    onclick={() => copyText(runBrewBundleCommand, t('install.bundle'), 'install-bundle')}
+                  >
+                    {#if copiedTarget === 'install-bundle'}
+                      <Check class="h-4 w-4 text-emerald-700" aria-hidden="true" />
+                    {:else}
+                      <Clipboard class="h-4 w-4" aria-hidden="true" />
+                    {/if}
+                  </button>
+                {/if}
+              </div>
+              {#if copiedTarget === 'install-bundle'}
+                <p class="mt-1 text-right text-xs font-medium text-emerald-700">Copied!</p>
+              {/if}
+              {#if downloadedBrewfileFilename}
+                <pre class="mt-2 overflow-auto rounded-md bg-zinc-950 p-3 text-xs leading-5 text-zinc-50"><code>{runBrewBundleCommand}</code></pre>
+              {/if}
+            </div>
+          </div>
+        </section>
+
+        <section class="rounded-md border border-zinc-200 bg-white p-4 shadow-sm">
           <div class="flex items-center justify-between gap-3">
             <h2 class="text-base font-semibold text-zinc-950">{t('share.title')}</h2>
             <button
               type="button"
-              class="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-800"
+              class="inline-flex items-center gap-2 rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-800 outline-none transition hover:border-zinc-400 hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
               onclick={createAndCopyShareUrl}
             >
-              {t('share.create')}
+              {#if copiedTarget === 'share-url'}
+                <Check class="h-4 w-4 text-emerald-700" aria-hidden="true" />
+                <span class="text-emerald-700">Copied!</span>
+              {:else}
+                <Clipboard class="h-4 w-4" aria-hidden="true" />
+                <span>{t('share.create')}</span>
+              {/if}
             </button>
           </div>
           {#if shareUrl}
@@ -810,38 +960,6 @@
           {#if shareMessage}
             <p class="mt-2 text-sm leading-6 text-amber-700">{shareMessage}</p>
           {/if}
-        </section>
-
-        <section class="rounded-md border border-zinc-200 bg-white p-4 shadow-sm">
-          <h2 class="text-base font-semibold text-zinc-950">{t('install.title')}</h2>
-          <div class="mt-3 space-y-3">
-            <div>
-              <div class="flex items-center justify-between gap-3">
-                <p class="text-sm font-medium text-zinc-700">{t('install.homebrew')}</p>
-                <button
-                  type="button"
-                  class="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium text-zinc-700"
-                  onclick={() => copyText(installHomebrewCommand, t('install.homebrew'))}
-                >
-                  {t('brewfile.copy')}
-                </button>
-              </div>
-              <pre class="mt-2 overflow-auto rounded-md bg-zinc-950 p-3 text-xs leading-5 text-zinc-50"><code>{installHomebrewCommand}</code></pre>
-            </div>
-            <div>
-              <div class="flex items-center justify-between gap-3">
-                <p class="text-sm font-medium text-zinc-700">{t('install.bundle')}</p>
-                <button
-                  type="button"
-                  class="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium text-zinc-700"
-                  onclick={() => copyText(runBrewBundleCommand, t('install.bundle'))}
-                >
-                  {t('brewfile.copy')}
-                </button>
-              </div>
-              <pre class="mt-2 overflow-auto rounded-md bg-zinc-950 p-3 text-xs leading-5 text-zinc-50"><code>{runBrewBundleCommand}</code></pre>
-            </div>
-          </div>
         </section>
 
         <section class="rounded-md border border-teal-200 bg-teal-50 p-4 text-sm leading-6 text-teal-950">

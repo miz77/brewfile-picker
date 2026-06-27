@@ -1,6 +1,15 @@
 import { expect, test, type Page } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
 
+test.beforeEach(async ({ page }) => {
+  await page.route('https://cdn.jsdelivr.net/gh/devicons/devicon@latest/devicon.min.css', async (route) => {
+    await route.fulfill({
+      contentType: 'text/css',
+      body: '.devicon-github-original::before { content: ""; }',
+    })
+  })
+})
+
 async function openAdvancedAdd(page: Page) {
   const advancedPanel = page.locator('details').filter({ hasText: 'Advanced add' })
   const isOpen = await advancedPanel.evaluate((element) => (element as HTMLDetailsElement).open)
@@ -39,7 +48,9 @@ async function downloadBrewfileText(page: Page): Promise<string> {
   await page.getByRole('button', { name: 'ダウンロード' }).click()
   const download = await downloadPromise
   const path = await download.path()
-  expect(download.suggestedFilename()).toBe('Brewfile')
+  const suggestedFilename = download.suggestedFilename()
+  expect(suggestedFilename).toMatch(/^Brewfile-\d{8}-\d{6}(?:-\d+)?$/)
+  await expect(page.getByText(`brew bundle --file "$HOME/Downloads/${suggestedFilename}"`)).toBeVisible()
   expect(path).not.toBeNull()
   if (!path) {
     throw new Error('Download path was not available')
@@ -117,6 +128,14 @@ test('opens the lab preset and updates selection', async ({ page }) => {
 
   await page.goto('/p/lab-2026')
   await expect(page.getByRole('heading', { name: 'Brewfile Picker' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'GitHub repositoryを開く' })).toHaveAttribute(
+    'href',
+    'https://github.com/miz77/brewfile-picker',
+  )
+  await expect(page.getByText('brew bundle --file')).toHaveCount(0)
+  await expect(
+    page.getByText('Brewfile をダウンロードすると、実行用コマンドがここに表示されます。'),
+  ).toBeVisible()
   await expect(page.getByText('package-index 読み込み済み')).toBeVisible()
   await expect(selectedItem(page, 'git')).toBeVisible()
   await expect(selectedItem(page, 'python')).toBeVisible()

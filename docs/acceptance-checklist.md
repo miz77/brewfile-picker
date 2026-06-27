@@ -12,7 +12,7 @@ Use this before publishing the MVP.
 - [x] Unknown, deprecated, and disabled package warnings are displayed.
 - [x] Disabled package download uses an in-app confirmation dialog.
 - [x] Brewfile download reflects selection changes.
-- [x] Brewfile download works and uses `Brewfile` as the suggested filename.
+- [x] Brewfile download works and uses a timestamped filename.
 - [x] Install commands are visible and copyable.
 
 ## Import And Export

@@ -22,7 +22,7 @@ Minimum checks:
 - [ ] Add a raw line from Advanced add.
 - [ ] Create a share URL and open it in a new tab.
 - [ ] Reload `/` and restore localStorage state.
-- [ ] Download `Brewfile` and inspect the file contents.
+- [ ] Download a timestamped `Brewfile-*` file and inspect the file contents.
 - [ ] Copy install commands.
 - [ ] Check the mobile layout around 390px width.
 - [ ] Confirm no cookie or analytics prompt appears.

@@ -78,6 +78,7 @@ The Cloudflare Pages project name is `brewfile-picker`.
 ## Privacy
 
 The app is designed to process imported Brewfiles in the browser. The MVP does not use user accounts, server-side storage, cookies, or custom analytics.
+The public page loads the Devicon stylesheet from jsDelivr for the repository icon.
 
 ## License
 
