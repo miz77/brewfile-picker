@@ -45,6 +45,6 @@ Use this before publishing the MVP.
 ## Remaining Before Real Use
 
 - [ ] Replace placeholder `lab-2026` package list with the real lab package set.
-- [ ] Confirm the first public `pages.dev` deployment.
+- [x] Confirm the first public `pages.dev` deployment.
 - [ ] Run the browser smoke checklist on at least Chrome and Safari.
 - [ ] Decide whether `miz7.net` should be attached after the initial `pages.dev` release.
