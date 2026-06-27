@@ -41,7 +41,10 @@ async function downloadBrewfileText(page: Page): Promise<string> {
   const path = await download.path()
   expect(download.suggestedFilename()).toBe('Brewfile')
   expect(path).not.toBeNull()
-  return readFile(path!, 'utf8')
+  if (!path) {
+    throw new Error('Download path was not available')
+  }
+  return readFile(path, 'utf8')
 }
 
 function packageIndexWithDisabledFixture() {

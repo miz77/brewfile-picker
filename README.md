@@ -29,6 +29,7 @@ The generated `public/package-index.json` is intentionally ignored by Git. It is
 
 ```sh
 npm run check
+npm run lint
 npm test
 npm run validate:presets
 npm run check:index

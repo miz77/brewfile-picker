@@ -8,6 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json && tsc -p tsconfig.scripts.json && tsc -p tsconfig.e2e.json",
+    "lint": "npm run lint:oxlint && npm run lint:biome",
+    "lint:oxlint": "oxlint .",
+    "lint:biome": "biome lint .",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
@@ -17,9 +20,10 @@
     "check:index:fixture": "tsx scripts/check-index-size.ts --min-formula-count 1 --min-cask-count 1",
     "validate:presets": "tsx scripts/validate-presets.ts",
     "validate:presets:local": "tsx scripts/validate-presets.ts --skip-index",
-    "ci:fixture": "npm run update:index:fixture && npm run check:index:fixture && npm run validate:presets && npm run check && npm test && npm run build"
+    "ci:fixture": "npm run update:index:fixture && npm run check:index:fixture && npm run validate:presets && npm run lint && npm run check && npm test && npm run build"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.1",
     "@playwright/test": "^1.61.1",
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "@testing-library/jest-dom": "^6.9.1",
@@ -27,6 +31,7 @@
     "@tsconfig/svelte": "^5.0.8",
     "@types/node": "^24.13.2",
     "jsdom": "^29.1.1",
+    "oxlint": "^1.71.0",
     "svelte": "^5.56.3",
     "svelte-check": "^4.6.0",
     "tsx": "^4.22.4",
