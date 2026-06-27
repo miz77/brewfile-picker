@@ -20,9 +20,9 @@ Minimum checks:
 - [ ] Add a `tap` from Advanced add.
 - [ ] Add a `mas` item from Advanced add.
 - [ ] Add a raw line from Advanced add.
-- [ ] Create a share URL and open it in a new tab.
+- [ ] Copy a share link and open it in a new tab.
 - [ ] Reload `/` and restore localStorage state.
-- [ ] Download a timestamped `Brewfile-*` file and inspect the file contents.
+- [ ] Download with timestamped, plain, and custom filenames and inspect the file contents.
 - [ ] Copy install commands.
 - [ ] Check the mobile layout around 390px width.
 - [ ] Confirm no cookie or analytics prompt appears.

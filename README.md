@@ -12,8 +12,9 @@ This project is not affiliated with the Homebrew project. It uses Homebrew metad
 - Import an existing Brewfile by file selection or drag and drop.
 - Preserve complex Brewfile lines as passthrough.
 - Add manual `brew`, `cask`, `tap`, `mas`, or raw passthrough entries.
+- Configure the downloaded Brewfile filename.
 - Save work in `localStorage`.
-- Create share URLs from selected `brew`, `cask`, and `tap` entries.
+- Copy share links from selected `brew`, `cask`, and `tap` entries.
 
 ## Development
 

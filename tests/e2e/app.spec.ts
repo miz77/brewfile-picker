@@ -1,7 +1,8 @@
 import { expect, test, type Page } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
 
-test.beforeEach(async ({ page }) => {
+test.beforeEach(async ({ context, page }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   await page.route('https://cdn.jsdelivr.net/gh/devicons/devicon@latest/devicon.min.css', async (route) => {
     await route.fulfill({
       contentType: 'text/css',
@@ -43,13 +44,20 @@ async function dropBrewfile(page: Page, content: string) {
   }, content)
 }
 
-async function downloadBrewfileText(page: Page): Promise<string> {
+async function downloadBrewfileText(
+  page: Page,
+  expectedFilename: RegExp | string = /^Brewfile-\d{8}-\d{6}(?:-\d+)?$/,
+): Promise<string> {
   const downloadPromise = page.waitForEvent('download')
   await page.getByRole('button', { name: 'ダウンロード' }).click()
   const download = await downloadPromise
   const path = await download.path()
   const suggestedFilename = download.suggestedFilename()
-  expect(suggestedFilename).toMatch(/^Brewfile-\d{8}-\d{6}(?:-\d+)?$/)
+  if (typeof expectedFilename === 'string') {
+    expect(suggestedFilename).toBe(expectedFilename)
+  } else {
+    expect(suggestedFilename).toMatch(expectedFilename)
+  }
   await expect(page.getByText(`brew bundle --file "$HOME/Downloads/${suggestedFilename}"`)).toBeVisible()
   expect(path).not.toBeNull()
   if (!path) {
@@ -137,6 +145,7 @@ test('opens the lab preset and updates selection', async ({ page }) => {
     page.getByText('Brewfile をダウンロードすると、実行用コマンドがここに表示されます。'),
   ).toBeVisible()
   await expect(page.getByText('package-index 読み込み済み')).toBeVisible()
+  await expect(page.getByText(/package-index 読み込み済み.*更新/)).toBeVisible()
   await expect(selectedItem(page, 'git')).toBeVisible()
   await expect(selectedItem(page, 'python')).toBeVisible()
   await expect(selectedItem(page, 'visual-studio-code')).toBeVisible()
@@ -193,6 +202,20 @@ test('downloads the generated Brewfile', async ({ page }) => {
   await expect(downloadBrewfileText(page)).resolves.toContain('brew "git"')
 })
 
+test('configures the downloaded Brewfile filename', async ({ page }) => {
+  await page.goto('/p/lab-2026')
+  await expect(page.getByText('Brewfile-YYYYMMDD-HHMMSS')).toBeVisible()
+
+  await page.getByLabel('ファイル名').selectOption('plain')
+  await expect(downloadBrewfileText(page, 'Brewfile')).resolves.toContain('brew "git"')
+  await expect(page.getByText('同名ファイルがある場合は、Downloads 内の実際のファイル名に合わせてください。')).toBeVisible()
+
+  await page.getByLabel('ファイル名').selectOption('custom')
+  await page.getByLabel('カスタム名').fill('lab/mac:setup')
+  await expect(page.getByText('lab-mac-setup')).toBeVisible()
+  await expect(downloadBrewfileText(page, 'lab-mac-setup')).resolves.toContain('brew "git"')
+})
+
 test('creates and restores a share URL without preserving mas or raw lines', async ({ page }) => {
   await page.goto('/p/lab-2026')
 
@@ -206,10 +229,10 @@ test('creates and restores a share URL without preserving mas or raw lines', asy
   await page.getByLabel('token / raw line').fill('vscode "svelte.svelte-vscode"')
   await page.getByRole('button', { name: '追加' }).click()
 
-  await page.getByRole('button', { name: 'URLをコピー' }).click()
-  await expect(page.getByLabel('共有URL')).toBeVisible()
+  await page.getByRole('button', { name: 'リンクをコピー' }).click()
+  await expect(page.getByRole('button', { name: 'Copied!' })).toBeVisible()
   await expect(page.getByText('2 件の項目はURL共有に含めません。')).toBeVisible()
-  const shareUrl = await page.getByLabel('共有URL').inputValue()
+  const shareUrl = await page.evaluate(() => navigator.clipboard.readText())
 
   await page.goto('about:blank')
   await page.goto(shareUrl)
@@ -218,6 +241,20 @@ test('creates and restores a share URL without preserving mas or raw lines', asy
   await expect(selectedItem(page, 'git')).toHaveCount(0)
   await expect(selectedItem(page, 'Xcode')).toHaveCount(0)
   await expect(downloadBrewfileText(page)).resolves.not.toContain('vscode "svelte.svelte-vscode"')
+
+  await openAdvancedAdd(page)
+  await page.getByLabel('種類').selectOption('brew')
+  await page.getByLabel('token / raw line').fill('node')
+  await page.getByRole('button', { name: '追加' }).click()
+  await expect(selectedItem(page, 'node')).toBeVisible()
+  await expect(page).toHaveURL(/\/p\/lab-2026$/)
+  await page.waitForTimeout(400)
+
+  await page.reload()
+  await expect(page.getByText('前回の作業がこのブラウザに残っています。')).toBeVisible()
+  await expect(selectedItem(page, 'node')).toHaveCount(0)
+  await page.getByRole('button', { name: '復元' }).click()
+  await expect(selectedItem(page, 'node')).toBeVisible()
 })
 
 test('offers localStorage restore on the default route', async ({ page }) => {

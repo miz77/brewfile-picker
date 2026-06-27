@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Check, Clipboard } from '@lucide/svelte'
+  import { Check, Clipboard, Link } from '@lucide/svelte'
   import { onDestroy, onMount } from 'svelte'
   import { createStateFromParsedBrewfile, mergeParsedBrewfileIntoState } from './lib/brewfile-parser/importState'
   import { parseBrewfile, type ParsedBrewfile } from './lib/brewfile-parser/parser'
@@ -34,7 +34,13 @@
 
   type IndexStatus = 'loading' | 'ready' | 'missing' | 'error'
   type AdvancedType = PackageType | 'raw'
-  type CopyTarget = 'brewfile' | 'install-homebrew' | 'install-bundle' | 'share-url'
+  type CopyTarget = 'install-homebrew' | 'install-bundle' | 'share-url'
+  type FilenameMode = 'timestamp' | 'plain' | 'custom'
+
+  type DownloadFilenameSettings = {
+    mode: FilenameMode
+    customName: string
+  }
 
   const routePresetId = getPresetIdFromPath(window.location.pathname)
   const availablePresets = listPresets()
@@ -43,6 +49,7 @@
   const installHomebrewCommand =
     '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
   const githubRepositoryUrl = 'https://github.com/miz77/brewfile-picker'
+  const downloadFilenameStorageKey = 'brewfile-picker:download-filename:v1'
 
   let activePreset = initialPreset
   let pickerState = createPickerStateFromPreset(activePreset)
@@ -56,6 +63,10 @@
   let shareMessage = ''
   let copiedTarget: CopyTarget | null = null
   let downloadedBrewfileFilename = ''
+  let downloadedBrewfileFilenameMayCollide = false
+  let filenameMode: FilenameMode = 'timestamp'
+  let customFilename = 'Brewfile'
+  let filenameSettingsLoaded = false
   let importError = ''
   let parsedImport: ParsedBrewfile | null = null
   let advancedType: AdvancedType = 'brew'
@@ -73,6 +84,7 @@
   let copyStatusTimer: number | undefined
 
   onMount(() => {
+    initializeFilenameSettings()
     void initializeState()
     void initializeIndex()
   })
@@ -94,6 +106,39 @@
       indexStatus = 'error'
       indexError = error instanceof Error ? error.message : String(error)
     }
+  }
+
+  function isFilenameMode(value: unknown): value is FilenameMode {
+    return value === 'timestamp' || value === 'plain' || value === 'custom'
+  }
+
+  function parseDownloadFilenameSettings(value: unknown): DownloadFilenameSettings | null {
+    if (!value || typeof value !== 'object') {
+      return null
+    }
+    const settings = value as Record<string, unknown>
+    if (!isFilenameMode(settings.mode)) {
+      return null
+    }
+
+    return {
+      mode: settings.mode,
+      customName: typeof settings.customName === 'string' ? settings.customName : 'Brewfile',
+    }
+  }
+
+  function initializeFilenameSettings() {
+    try {
+      const raw = globalThis.localStorage?.getItem(downloadFilenameStorageKey)
+      const settings = raw ? parseDownloadFilenameSettings(JSON.parse(raw)) : null
+      if (settings) {
+        filenameMode = settings.mode
+        customFilename = settings.customName
+      }
+    } catch {
+      globalThis.localStorage?.removeItem(downloadFilenameStorageKey)
+    }
+    filenameSettingsLoaded = true
   }
 
   async function initializeState() {
@@ -141,6 +186,21 @@
   $: runBrewBundleCommand = downloadedBrewfileFilename
     ? `brew bundle --file "$HOME/Downloads/${downloadedBrewfileFilename}"`
     : ''
+  $: sanitizedCustomFilename = sanitizeDownloadFilename(customFilename)
+  $: downloadFilenamePreview =
+    filenameMode === 'timestamp'
+      ? t('filename.previewTimestamp')
+      : filenameMode === 'plain'
+        ? 'Brewfile'
+        : sanitizedCustomFilename
+  $: downloadFilenameError =
+    filenameMode === 'custom' && customFilename.trim().length === 0 ? t('filename.customRequired') : ''
+  $: canDownloadBrewfile = brewfilePreview.length > 0 && downloadFilenameError.length === 0
+  $: installBundleNote = !downloadedBrewfileFilename
+    ? t('install.bundlePending')
+    : downloadedBrewfileFilenameMayCollide
+      ? t('install.bundleNoteCollision')
+      : t('install.bundleNote')
   $: importPackageCount = parsedImport?.packages.length ?? 0
   $: importPassthroughCount = parsedImport?.passthrough.length ?? 0
   $: selectedWarningRows = selectedPackages.flatMap((pkg) =>
@@ -153,11 +213,12 @@
     indexStatus === 'loading'
       ? t('index.loading')
       : indexStatus === 'ready' && packageIndex
-        ? `${t('index.ready')} brew ${packageIndex.counts.formula.toLocaleString()} / cask ${packageIndex.counts.cask.toLocaleString()}`
+        ? `${t('index.ready')} brew ${packageIndex.counts.formula.toLocaleString()} / cask ${packageIndex.counts.cask.toLocaleString()} ・ ${t('index.updated')} ${formatLocalDateTime(packageIndex.generatedAt)}`
         : indexStatus === 'missing'
           ? t('index.missing')
           : `${t('index.error')} ${indexError}`
   $: scheduleStateSave(pickerState, autoSaveEnabled)
+  $: saveDownloadFilenameSettings(filenameSettingsLoaded, filenameMode, customFilename)
 
   function typeLabel(type: PackageType): string {
     return {
@@ -175,6 +236,22 @@
       tap: 'border-amber-200 bg-amber-50 text-amber-800',
       mas: 'border-emerald-200 bg-emerald-50 text-emerald-800',
     }[type]
+  }
+
+  function formatLocalDateTime(value: string): string {
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) {
+      return value
+    }
+
+    return new Intl.DateTimeFormat(undefined, {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZoneName: 'short',
+    }).format(date)
   }
 
   function changePreset(event: Event) {
@@ -245,6 +322,30 @@
     }
   }
 
+  function saveDownloadFilenameSettings(loaded: boolean, mode: FilenameMode, customName: string) {
+    if (!loaded) {
+      return
+    }
+
+    globalThis.localStorage?.setItem(
+      downloadFilenameStorageKey,
+      JSON.stringify({ mode, customName } satisfies DownloadFilenameSettings),
+    )
+  }
+
+  function sanitizeDownloadFilename(value: string): string {
+    const unsafeFilenameCharacters = new Set(['<', '>', ':', '"', '/', '\\', '|', '?', '*'])
+    const withoutUnsafeCharacters = Array.from(value.trim(), (character) => {
+      return unsafeFilenameCharacters.has(character) || character.charCodeAt(0) < 32 ? '-' : character
+    }).join('')
+    const sanitized = withoutUnsafeCharacters
+      .trim()
+      .replace(/-+/g, '-')
+      .replace(/^[.\s-]+|[.\s-]+$/g, '')
+
+    return sanitized.length > 0 ? sanitized : 'Brewfile'
+  }
+
   function createLocalTimestamp(date: Date): string {
     const pad = (value: number) => String(value).padStart(2, '0')
     return [
@@ -259,6 +360,14 @@
   }
 
   function createDownloadFilename(): string {
+    if (filenameMode === 'plain') {
+      return 'Brewfile'
+    }
+
+    if (filenameMode === 'custom') {
+      return sanitizedCustomFilename
+    }
+
     const timestamp = createLocalTimestamp(new Date())
     const baseFilename = `Brewfile-${timestamp}`
 
@@ -275,6 +384,7 @@
   function triggerBrewfileDownload() {
     const filename = createDownloadFilename()
     downloadedBrewfileFilename = filename
+    downloadedBrewfileFilenameMayCollide = filenameMode !== 'timestamp'
     const blob = new Blob([`${brewfilePreview}\n`], { type: 'application/octet-stream' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
@@ -286,6 +396,10 @@
   }
 
   function downloadBrewfile() {
+    if (!canDownloadBrewfile) {
+      return
+    }
+
     if (disabledSelectedPackages.length > 0) {
       showDisabledDownloadDialog = true
       return
@@ -299,6 +413,11 @@
   }
 
   function confirmDisabledDownload() {
+    if (!canDownloadBrewfile) {
+      showDisabledDownloadDialog = false
+      return
+    }
+
     showDisabledDownloadDialog = false
     triggerBrewfileDownload()
   }
@@ -326,7 +445,17 @@
     liveMessage = t('storage.restored')
   }
 
+  function clearShareHashForEditedWork() {
+    if (!getShareValueFromHash(window.location.hash)) {
+      return
+    }
+
+    window.history.replaceState({}, '', `/p/${activePreset.id}`)
+    startupMessage = ''
+  }
+
   function startNewWorkFromCurrentState() {
+    clearShareHashForEditedWork()
     if (!pendingStoredState) {
       return
     }
@@ -564,44 +693,75 @@
 />
 
 <main class="min-h-svh bg-stone-50 text-zinc-950">
-  <div class="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8">
-    <div class="flex justify-end">
-      <a
-        class="inline-flex h-8 w-8 items-center justify-center rounded-md text-2xl text-zinc-700 outline-none transition hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50"
-        href={githubRepositoryUrl}
-        target="_blank"
-        rel="noreferrer"
-        aria-label="GitHub repositoryを開く"
-      >
-        <i class="devicon-github-original" aria-hidden="true"></i>
-      </a>
-    </div>
-
-    <header class="flex flex-col gap-4 border-b border-zinc-200 pb-5 lg:flex-row lg:items-end lg:justify-between">
+  <div class="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-3 sm:px-6 lg:px-8">
+    <header class="flex flex-col gap-3 border-b border-zinc-200 pb-4 sm:flex-row sm:items-start sm:justify-between">
       <div class="max-w-3xl">
-        <p class="text-sm font-medium text-teal-700">{t('app.kicker')}</p>
-        <h1 class="mt-2 text-3xl font-semibold tracking-normal text-zinc-950 sm:text-4xl">
+        <p class="text-xs font-medium text-teal-700">{t('app.kicker')}</p>
+        <h1 class="mt-1 text-2xl font-semibold tracking-normal text-zinc-950 sm:text-3xl">
           {t('app.title')}
         </h1>
-        <p class="mt-3 max-w-2xl text-base leading-7 text-zinc-600">
+        <p class="mt-2 max-w-2xl text-sm leading-6 text-zinc-600">
           {t('app.description')}
         </p>
       </div>
-      <p class="text-xs text-zinc-500 lg:text-right">{indexStatusMessage}</p>
+      <div class="flex shrink-0 flex-wrap items-center gap-3 sm:justify-end sm:pt-1">
+        <a
+          class="inline-flex h-7 w-7 items-center justify-center rounded-md text-xl text-zinc-700 outline-none transition hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50"
+          href={githubRepositoryUrl}
+          target="_blank"
+          rel="noreferrer"
+          aria-label="GitHub repositoryを開く"
+        >
+          <i class="devicon-github-original" aria-hidden="true"></i>
+        </a>
+        <p class="text-xs text-zinc-500">{indexStatusMessage}</p>
+      </div>
     </header>
 
-    <section class="flex flex-col gap-2 sm:flex-row sm:items-center">
-      <label class="text-sm font-medium text-zinc-700" for="preset-select">{t('preset.select')}</label>
-      <select
-        id="preset-select"
-        class="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 sm:w-72"
-        value={activePreset.id}
-        onchange={changePreset}
-      >
-        {#each availablePresets as preset}
-          <option value={preset.id}>{formatLocalText(preset.name)}</option>
-        {/each}
-      </select>
+    <section class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+      <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <label class="text-sm font-medium text-zinc-700" for="preset-select">{t('preset.select')}</label>
+        <select
+          id="preset-select"
+          class="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 sm:w-72"
+          value={activePreset.id}
+          onchange={changePreset}
+        >
+          {#each availablePresets as preset}
+            <option value={preset.id}>{formatLocalText(preset.name)}</option>
+          {/each}
+        </select>
+      </div>
+
+      <div class="flex min-w-0 flex-col gap-2 lg:flex-row lg:items-center lg:justify-end">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <label class="text-sm font-medium text-zinc-700" for="filename-mode">{t('filename.title')}</label>
+          <select
+            id="filename-mode"
+            class="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 sm:w-56"
+            bind:value={filenameMode}
+          >
+            <option value="timestamp">{t('filename.timestamp')}</option>
+            <option value="plain">{t('filename.plain')}</option>
+            <option value="custom">{t('filename.custom')}</option>
+          </select>
+        </div>
+        {#if filenameMode === 'custom'}
+          <input
+            class="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 lg:w-52"
+            aria-label={t('filename.customLabel')}
+            placeholder={t('filename.customPlaceholder')}
+            bind:value={customFilename}
+          />
+        {/if}
+        <p class="min-w-0 text-xs text-zinc-500">
+          {t('filename.preview')}
+          <span class="ml-1 font-mono text-zinc-800">{downloadFilenamePreview}</span>
+        </p>
+        {#if downloadFilenameError}
+          <p class="text-sm text-amber-700">{downloadFilenameError}</p>
+        {/if}
+      </div>
     </section>
 
     {#if startupMessage || pendingStoredState}
@@ -629,7 +789,7 @@
     {/if}
 
     <div class="grid gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.85fr)]">
-      <section class="flex flex-col gap-5">
+      <section class="flex min-w-0 flex-col gap-5">
         <section class="rounded-md border border-zinc-200 bg-white shadow-sm">
           <div class="border-b border-zinc-200 px-4 py-3">
             <h2 class="text-base font-semibold text-zinc-950">{t('search.title')}</h2>
@@ -777,45 +937,48 @@
             </button>
           </div>
         </details>
+
+        <section class="rounded-md border border-teal-200 bg-teal-50 p-4 text-sm leading-6 text-teal-950">
+          <p class="font-medium">{t('privacy.title')}</p>
+          <p class="mt-1">{t('privacy.browserOnly')}</p>
+        </section>
       </section>
 
-      <aside class="flex flex-col gap-4">
+      <aside class="flex min-w-0 flex-col gap-4">
         <section class="rounded-md border border-zinc-200 bg-white shadow-sm">
-          <div class="flex items-center justify-between gap-3 border-b border-zinc-200 px-4 py-3">
+          <div class="flex flex-col gap-3 border-b border-zinc-200 px-4 py-3">
             <h2 class="text-base font-semibold text-zinc-950">
               {t('selected.title')}
               <span class="ml-2 text-sm font-normal text-zinc-500">{selectedPackages.length}</span>
             </h2>
-            <div class="flex shrink-0 gap-2">
-              <div class="flex items-center gap-2">
-                <button
-                  type="button"
-                  class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-zinc-300 text-zinc-700 outline-none transition hover:border-zinc-400 hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={brewfilePreview.length === 0}
-                  title={t('brewfile.copy')}
-                  aria-label="Brewfile をコピー"
-                  onclick={() => copyText(brewfilePreview, 'Brewfile', 'brewfile')}
-                >
-                  {#if copiedTarget === 'brewfile'}
-                    <Check class="h-4 w-4 text-emerald-700" aria-hidden="true" />
-                  {:else}
-                    <Clipboard class="h-4 w-4" aria-hidden="true" />
-                  {/if}
-                </button>
-                {#if copiedTarget === 'brewfile'}
-                  <span class="text-xs font-medium text-emerald-700">Copied!</span>
-                {/if}
-              </div>
+            <div class="grid w-full gap-2" style="grid-template-columns: minmax(0, 1.2fr) minmax(7rem, 0.8fr);">
               <button
                 type="button"
-                class="rounded-md bg-teal-700 px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={brewfilePreview.length === 0}
+                class="inline-flex min-w-0 items-center justify-center gap-2 rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-800 outline-none transition hover:border-zinc-400 hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={selectedPackages.length === 0 && pickerState.passthrough.length === 0}
+                onclick={createAndCopyShareUrl}
+              >
+                {#if copiedTarget === 'share-url'}
+                  <Check class="h-4 w-4 text-emerald-700" aria-hidden="true" />
+                  <span class="text-emerald-700">Copied!</span>
+                {:else}
+                  <Link class="h-4 w-4" aria-hidden="true" />
+                  <span class="whitespace-nowrap">{t('share.create')}</span>
+                {/if}
+              </button>
+              <button
+                type="button"
+                class="min-w-0 rounded-md bg-teal-700 px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!canDownloadBrewfile}
                 onclick={downloadBrewfile}
               >
                 {t('brewfile.download')}
               </button>
             </div>
           </div>
+          {#if shareMessage}
+            <p class="border-b border-zinc-100 px-4 py-2 text-sm leading-6 text-amber-700">{shareMessage}</p>
+          {/if}
           {#if selectedPackages.length === 0 && pickerState.passthrough.length === 0}
             <p class="p-4 text-sm text-zinc-500">{t('selected.empty')}</p>
           {:else}
@@ -902,9 +1065,7 @@
               <div class="flex items-start justify-between gap-3">
                 <div>
                   <p class="text-sm font-medium text-zinc-800">{t('install.bundle')}</p>
-                  <p class="mt-0.5 text-xs leading-5 text-zinc-500">
-                    {downloadedBrewfileFilename ? t('install.bundleNote') : t('install.bundlePending')}
-                  </p>
+                  <p class="mt-0.5 text-xs leading-5 text-zinc-500">{installBundleNote}</p>
                 </div>
                 {#if downloadedBrewfileFilename}
                   <button
@@ -932,40 +1093,6 @@
           </div>
         </section>
 
-        <section class="rounded-md border border-zinc-200 bg-white p-4 shadow-sm">
-          <div class="flex items-center justify-between gap-3">
-            <h2 class="text-base font-semibold text-zinc-950">{t('share.title')}</h2>
-            <button
-              type="button"
-              class="inline-flex items-center gap-2 rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-800 outline-none transition hover:border-zinc-400 hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
-              onclick={createAndCopyShareUrl}
-            >
-              {#if copiedTarget === 'share-url'}
-                <Check class="h-4 w-4 text-emerald-700" aria-hidden="true" />
-                <span class="text-emerald-700">Copied!</span>
-              {:else}
-                <Clipboard class="h-4 w-4" aria-hidden="true" />
-                <span>{t('share.create')}</span>
-              {/if}
-            </button>
-          </div>
-          {#if shareUrl}
-            <input
-              class="mt-3 w-full rounded-md border border-zinc-300 bg-zinc-50 px-3 py-2 text-xs text-zinc-700"
-              readonly
-              value={shareUrl}
-              aria-label={t('share.url')}
-            />
-          {/if}
-          {#if shareMessage}
-            <p class="mt-2 text-sm leading-6 text-amber-700">{shareMessage}</p>
-          {/if}
-        </section>
-
-        <section class="rounded-md border border-teal-200 bg-teal-50 p-4 text-sm leading-6 text-teal-950">
-          <p class="font-medium">{t('privacy.title')}</p>
-          <p class="mt-1">{t('privacy.browserOnly')}</p>
-        </section>
       </aside>
     </div>
 
