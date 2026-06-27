@@ -18,6 +18,7 @@ This project is not affiliated with the Homebrew project. It uses Homebrew packa
 - Download the generated Brewfile with a timestamped, plain, or custom filename.
 - Copy a share link for selected `tap`, `brew`, and `cask` entries.
 - Keep edits in the browser with local autosave.
+- Switch the app UI between Japanese and English.
 
 ## Basic Usage
 

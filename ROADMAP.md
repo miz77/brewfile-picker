@@ -23,6 +23,7 @@ The current implementation supports:
 - Local autosave using `localStorage`.
 - Share URLs for selected `tap`, `brew`, and `cask` entries.
 - Manual `tap`, `brew`, `cask`, `mas`, and raw entry additions.
+- Japanese / English UI switching with local preference storage.
 - Warnings for unknown, deprecated, and disabled packages.
 - CI checks with fixture Homebrew metadata.
 - Scheduled deploys that regenerate the live package index.
@@ -119,7 +120,6 @@ The current implementation supports:
 
 - User-managed named presets stored in the browser with `localStorage` or IndexedDB.
 - Preset import and export as YAML or JSON.
-- Optional multi-language UI if non-Japanese usage becomes likely.
 - Richer package metadata in search results.
 - Better package filtering by type, selected state, disabled state, and deprecated state.
 - More formal release notes or changelog once production usage becomes regular.

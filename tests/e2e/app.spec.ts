@@ -145,7 +145,7 @@ test('opens the lab preset and updates selection', async ({ page }) => {
 
   await page.goto('/p/lab-2026')
   await expect(page.getByRole('heading', { name: 'Brewfile Picker' })).toBeVisible()
-  await expect(page.getByRole('link', { name: 'GitHub repositoryを開く' })).toHaveAttribute(
+  await expect(page.getByRole('link', { name: 'GitHub リポジトリを開く' })).toHaveAttribute(
     'href',
     'https://github.com/miz77/brewfile-picker',
   )
@@ -190,6 +190,20 @@ test('opens the blank preset on the root route', async ({ page }) => {
   await expect(page.getByLabel('プリセット')).toHaveValue('blank')
   await expect(page.getByText('まだ何も選択されていません。')).toBeVisible()
   await expect(selectedItem(page, 'git')).toHaveCount(0)
+})
+
+test('switches the UI language', async ({ page }) => {
+  await page.goto('/')
+
+  await page.getByLabel('表示言語').selectOption('en')
+  await expect(page.getByLabel('Language')).toHaveValue('en')
+  await expect(page.getByRole('heading', { name: 'Package Search' })).toBeVisible()
+  await expect(page.getByLabel('Preset')).toHaveValue('blank')
+  await expect(page.getByText('Nothing is selected yet.')).toBeVisible()
+
+  await page.reload()
+  await expect(page.getByLabel('Language')).toHaveValue('en')
+  await expect(page.getByRole('button', { name: 'Download' })).toBeVisible()
 })
 
 test('switches presets from the preset selector', async ({ page }) => {
