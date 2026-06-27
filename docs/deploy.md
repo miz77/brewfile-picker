@@ -4,7 +4,7 @@ The app is a static Vite build deployed to Cloudflare Pages.
 
 ## Cloudflare Pages Project
 
-Create a Pages project named:
+The deploy workflow creates the Pages project if it does not already exist:
 
 ```text
 brewfile-picker
@@ -54,10 +54,17 @@ npm run validate:presets
 npm run build
 ```
 
-Then it deploys `dist/` with:
+Then it checks for the Cloudflare Pages project and creates it when missing:
 
 ```sh
-pages deploy dist --project-name=brewfile-picker
+wrangler pages project list --json
+wrangler pages project create brewfile-picker --production-branch=main
+```
+
+Finally, it deploys `dist/` with:
+
+```sh
+pages deploy dist --project-name=brewfile-picker --commit-dirty=true
 ```
 
 ## Local Release Check
