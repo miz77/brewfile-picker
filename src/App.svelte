@@ -48,10 +48,14 @@
   const advancedTypes: AdvancedType[] = ['brew', 'cask', 'tap', 'mas', 'raw']
   const installHomebrewCommand =
     '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+  const homebrewUrl = 'https://brew.sh/'
   const githubRepositoryUrl = 'https://github.com/miz77/brewfile-picker'
   const commitSha = import.meta.env.VITE_COMMIT_SHA
   const shortCommitSha = commitSha ? commitSha.slice(0, 7) : ''
   const commitUrl = commitSha ? `${githubRepositoryUrl}/commit/${commitSha}` : ''
+  const repositoryBlobRef = commitSha || 'main'
+  const licenseUrl = `${githubRepositoryUrl}/blob/${repositoryBlobRef}/LICENSE`
+  const thirdPartyNoticesUrl = `${githubRepositoryUrl}/blob/${repositoryBlobRef}/THIRD_PARTY_NOTICES.md`
   const downloadFilenameStorageKey = 'brewfile-picker:download-filename:v1'
 
   let activePreset = initialPreset
@@ -236,7 +240,7 @@
 
   function typeBadgeClass(type: PackageType): string {
     return {
-      brew: 'border-sky-200 bg-sky-50 text-sky-800',
+      brew: 'border-[var(--brand-border)] bg-[var(--brand-soft)] text-[#2b6f8f]',
       cask: 'border-violet-200 bg-violet-50 text-violet-800',
       tap: 'border-amber-200 bg-amber-50 text-amber-800',
       mas: 'border-emerald-200 bg-emerald-50 text-emerald-800',
@@ -701,7 +705,7 @@
   <div class="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-3 sm:px-6 lg:px-8">
     <header class="flex flex-col gap-3 border-b border-zinc-200 pb-4 sm:flex-row sm:items-start sm:justify-between">
       <div class="max-w-3xl">
-        <p class="text-xs font-medium text-teal-700">{t('app.kicker')}</p>
+        <p class="text-xs font-medium text-[var(--brand-strong)]">{t('app.kicker')}</p>
         <h1 class="mt-1 text-2xl font-semibold tracking-normal text-zinc-950 sm:text-3xl">
           {t('app.title')}
         </h1>
@@ -712,7 +716,7 @@
       <div class="flex shrink-0 flex-col gap-1 sm:items-end sm:pt-1">
         <div class="flex items-center gap-2">
           <a
-            class="inline-flex h-7 w-7 items-center justify-center rounded-md text-xl text-zinc-700 outline-none transition hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50"
+            class="inline-flex h-7 w-7 items-center justify-center rounded-md text-xl text-zinc-700 outline-none transition hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50"
             href={githubRepositoryUrl}
             target="_blank"
             rel="noreferrer"
@@ -744,7 +748,7 @@
         <label class="text-sm font-medium text-zinc-700" for="preset-select">{t('preset.select')}</label>
         <select
           id="preset-select"
-          class="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 sm:w-72"
+          class="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-soft)] sm:w-72"
           value={activePreset.id}
           onchange={changePreset}
         >
@@ -759,7 +763,7 @@
           <label class="text-sm font-medium text-zinc-700" for="filename-mode">{t('filename.title')}</label>
           <select
             id="filename-mode"
-            class="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 sm:w-56"
+            class="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-soft)] sm:w-56"
             bind:value={filenameMode}
           >
             <option value="timestamp">{t('filename.timestamp')}</option>
@@ -769,7 +773,7 @@
         </div>
         {#if filenameMode === 'custom'}
           <input
-            class="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 lg:w-52"
+            class="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-soft)] lg:w-52"
             aria-label={t('filename.customLabel')}
             placeholder={t('filename.customPlaceholder')}
             bind:value={customFilename}
@@ -786,20 +790,21 @@
     </section>
 
     {#if startupMessage || pendingStoredState}
-      <section class="flex flex-col gap-3 rounded-md border border-teal-200 bg-teal-50 p-4 text-sm text-teal-950 sm:flex-row sm:items-center sm:justify-between">
+      <section class="flex flex-col gap-3 rounded-md border border-[var(--brand-border)] bg-[var(--brand-soft)] p-4 text-sm text-[var(--brand-ink)] sm:flex-row sm:items-center sm:justify-between">
         <p>{pendingStoredState ? t('storage.available') : startupMessage}</p>
         {#if pendingStoredState}
           <div class="flex gap-2">
             <button
               type="button"
-              class="rounded-md bg-teal-700 px-3 py-1.5 text-sm font-medium text-white"
+              data-button-variant="primary"
+              class="rounded-md px-3 py-1.5 text-sm font-medium transition"
               onclick={restorePendingState}
             >
               {t('storage.restore')}
             </button>
             <button
               type="button"
-              class="rounded-md border border-teal-300 px-3 py-1.5 text-sm font-medium text-teal-950"
+              class="rounded-md border border-[var(--brand-border-strong)] px-3 py-1.5 text-sm font-medium text-[var(--brand-ink)] transition hover:bg-white/60"
               onclick={discardPendingState}
             >
               {t('storage.discard')}
@@ -819,7 +824,7 @@
             <label class="block">
               <span class="text-sm font-medium text-zinc-700">{t('search.label')}</span>
               <input
-                class="mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                class="mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-soft)]"
                 type="search"
                 placeholder={t('search.placeholder')}
                 bind:value={searchQuery}
@@ -841,7 +846,7 @@
                           {typeLabel(result.type)}
                         </span>
                         {#if result.inPreset}
-                          <span class="rounded border border-teal-200 bg-teal-50 px-1.5 py-0.5 text-[11px] font-medium text-teal-800">
+                          <span class="rounded border border-[var(--brand-border)] bg-[var(--brand-soft)] px-1.5 py-0.5 text-[11px] font-medium text-[#2b6f8f]">
                             {t('search.inPreset')}
                           </span>
                         {/if}
@@ -889,7 +894,8 @@
                 <div class="mt-3 flex gap-2">
                   <button
                     type="button"
-                    class="rounded-md bg-teal-700 px-3 py-1.5 text-sm font-medium text-white"
+                    data-button-variant="primary"
+                    class="rounded-md px-3 py-1.5 text-sm font-medium transition"
                     onclick={() => applyImport('replace')}
                   >
                     {t('import.replace')}
@@ -916,7 +922,7 @@
               <label class="block">
                 <span class="text-sm font-medium text-zinc-700">{t('advanced.type')}</span>
                 <select
-                  class="mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                  class="mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-soft)]"
                   bind:value={advancedType}
                 >
                   {#each advancedTypes as type}
@@ -929,7 +935,7 @@
                   {advancedType === 'mas' ? t('advanced.name') : t('advanced.token')}
                 </span>
                 <input
-                  class="mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                  class="mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-soft)]"
                   placeholder={advancedType === 'raw' ? 'vscode "svelte.svelte-vscode"' : 'node'}
                   bind:value={advancedToken}
                 />
@@ -939,7 +945,7 @@
               <label class="block">
                 <span class="text-sm font-medium text-zinc-700">{t('advanced.masId')}</span>
                 <input
-                  class="mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                  class="mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-soft)]"
                   inputmode="numeric"
                   placeholder="497799835"
                   bind:value={advancedMasId}
@@ -951,7 +957,8 @@
             {/if}
             <button
               type="button"
-              class="rounded-md bg-teal-700 px-3 py-1.5 text-sm font-medium text-white"
+              data-button-variant="primary"
+              class="rounded-md px-3 py-1.5 text-sm font-medium transition"
               onclick={addAdvancedItem}
             >
               {t('advanced.add')}
@@ -959,7 +966,7 @@
           </div>
         </details>
 
-        <section class="rounded-md border border-teal-200 bg-teal-50 p-4 text-sm leading-6 text-teal-950">
+        <section class="rounded-md border border-[var(--brand-border)] bg-[var(--brand-soft)] p-4 text-sm leading-6 text-[var(--brand-ink)]">
           <p class="font-medium">{t('privacy.title')}</p>
           <p class="mt-1">{t('privacy.browserOnly')}</p>
         </section>
@@ -975,7 +982,7 @@
             <div class="grid w-full gap-2" style="grid-template-columns: minmax(0, 1.2fr) minmax(7rem, 0.8fr);">
               <button
                 type="button"
-                class="inline-flex min-w-0 items-center justify-center gap-2 rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-800 outline-none transition hover:border-zinc-400 hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                class="inline-flex min-w-0 items-center justify-center gap-2 rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-800 outline-none transition hover:border-zinc-400 hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={selectedPackages.length === 0 && pickerState.passthrough.length === 0}
                 onclick={createAndCopyShareUrl}
               >
@@ -989,7 +996,8 @@
               </button>
               <button
                 type="button"
-                class="min-w-0 rounded-md bg-teal-700 px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+                data-button-variant="primary"
+                class="min-w-0 rounded-md px-3 py-1.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={!canDownloadBrewfile}
                 onclick={downloadBrewfile}
               >
@@ -1065,7 +1073,7 @@
                 </div>
                 <button
                   type="button"
-                  class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-zinc-300 text-zinc-700 outline-none transition hover:border-zinc-400 hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+                  class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-zinc-300 text-zinc-700 outline-none transition hover:border-zinc-400 hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2"
                   title={t('brewfile.copy')}
                   aria-label={`${t('install.homebrew')}をコピー`}
                   onclick={() => copyText(installHomebrewCommand, t('install.homebrew'), 'install-homebrew')}
@@ -1091,7 +1099,7 @@
                 {#if downloadedBrewfileFilename}
                   <button
                     type="button"
-                    class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-zinc-300 text-zinc-700 outline-none transition hover:border-zinc-400 hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+                    class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-zinc-300 text-zinc-700 outline-none transition hover:border-zinc-400 hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2"
                     title={t('brewfile.copy')}
                     aria-label={`${t('install.bundle')}をコピー`}
                     onclick={() => copyText(runBrewBundleCommand, t('install.bundle'), 'install-bundle')}
@@ -1117,11 +1125,45 @@
       </aside>
     </div>
 
+    <footer class="space-y-1 border-t border-zinc-200 pt-4 pb-2 text-xs text-zinc-500">
+      <p>
+        {t('footer.homebrewThanksBefore')}
+        <a
+          class="underline-offset-2 transition hover:text-[var(--brand-strong)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50"
+          href={homebrewUrl}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Homebrew
+        </a>
+        {t('footer.homebrewThanksAfter')}
+      </p>
+      <nav class="flex flex-wrap items-center gap-x-2 gap-y-1" aria-label="Legal links">
+        <a
+          class="underline-offset-2 transition hover:text-[var(--brand-strong)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50"
+          href={licenseUrl}
+          target="_blank"
+          rel="noreferrer"
+        >
+          {t('footer.licenseMit')}
+        </a>
+        <span aria-hidden="true">·</span>
+        <a
+          class="underline-offset-2 transition hover:text-[var(--brand-strong)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50"
+          href={thirdPartyNoticesUrl}
+          target="_blank"
+          rel="noreferrer"
+        >
+          {t('footer.notices')}
+        </a>
+      </nav>
+    </footer>
+
     <p class="sr-only" aria-live="polite">{liveMessage}</p>
   </div>
 
   {#if isDragActive}
-    <div class="fixed inset-0 z-50 grid place-items-center border-4 border-teal-500 bg-teal-950/25 p-6">
+    <div class="fixed inset-0 z-50 grid place-items-center border-4 border-[var(--brand)] bg-[#143d4e]/25 p-6">
       <div class="rounded-md bg-white px-5 py-4 text-base font-semibold text-zinc-950 shadow-lg">
         {t('drop.title')}
       </div>
@@ -1155,7 +1197,8 @@
           </button>
           <button
             type="button"
-            class="rounded-md bg-teal-700 px-3 py-1.5 text-sm font-medium text-white"
+            data-button-variant="primary"
+            class="rounded-md px-3 py-1.5 text-sm font-medium transition"
             onclick={confirmDisabledDownload}
           >
             {t('download.continue')}

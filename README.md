@@ -81,6 +81,14 @@ The Cloudflare Pages project name is `brewfile-picker`.
 The app is designed to process imported Brewfiles in the browser. The MVP does not use user accounts, server-side storage, cookies, or custom analytics.
 The public page loads the Devicon stylesheet from jsDelivr for the repository icon.
 
+## Third-Party Notices
+
+Package metadata is derived from the Homebrew Formulae JSON API. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for Homebrew-related notices and attribution.
+
+## Acknowledgements
+
+Thanks to the Homebrew maintainers and contributors for making Homebrew and its package metadata available to the community.
+
 ## License
 
 MIT
