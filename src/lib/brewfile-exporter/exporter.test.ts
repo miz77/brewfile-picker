@@ -11,7 +11,7 @@ describe('exportBrewfile', () => {
       packages: [
         { type: 'cask', token: 'zotero', selected: true, source: 'preset', order: 2 },
         { type: 'brew', token: 'git', selected: true, source: 'preset', order: 1 },
-        { type: 'tap', token: 'homebrew/cask-fonts', selected: true, source: 'manual', order: Number.MAX_SAFE_INTEGER },
+        { type: 'tap', token: 'homebrew/services', selected: true, source: 'manual', order: Number.MAX_SAFE_INTEGER },
         { type: 'brew', token: 'node', selected: true, source: 'manual', order: Number.MAX_SAFE_INTEGER },
         { type: 'mas', token: 'Xcode', selected: true, source: 'manual', order: Number.MAX_SAFE_INTEGER, masId: 497799835 },
       ],
@@ -20,7 +20,7 @@ describe('exportBrewfile', () => {
 
     expect(exportBrewfile(state)).toBe(
       [
-        'tap "homebrew/cask-fonts"',
+        'tap "homebrew/services"',
         'brew "git"',
         'brew "node"',
         'cask "zotero"',

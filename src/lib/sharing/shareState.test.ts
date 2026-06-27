@@ -37,12 +37,12 @@ describe('share state', () => {
     const state = createStateFromSharePayload(preset, {
       version: 1,
       base: { presetId: 'lab-2026', revision: '2026-06-27' },
-      selected: { tap: ['homebrew/cask-fonts'], brew: ['node'], cask: ['zotero'] },
+      selected: { tap: ['homebrew/services'], brew: ['node'], cask: ['zotero'] },
     })
 
     expect(state.packages.filter((pkg) => pkg.selected).map((pkg) => `${pkg.type}:${pkg.token}`)).toEqual([
       'cask:zotero',
-      'tap:homebrew/cask-fonts',
+      'tap:homebrew/services',
       'brew:node',
     ])
   })

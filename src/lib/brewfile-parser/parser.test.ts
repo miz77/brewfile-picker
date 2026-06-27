@@ -5,7 +5,7 @@ describe('parseBrewfile', () => {
   it('parses simple tap, brew, cask, and mas lines', () => {
     const parsed = parseBrewfile(
       [
-        'tap "homebrew/cask-fonts"',
+        'tap "homebrew/services"',
         "brew 'git'",
         'cask "visual-studio-code"',
         'mas "Xcode", id: 497799835',
@@ -13,7 +13,7 @@ describe('parseBrewfile', () => {
     )
 
     expect(parsed.packages).toEqual([
-      { type: 'tap', token: 'homebrew/cask-fonts', lineNumber: 1 },
+      { type: 'tap', token: 'homebrew/services', lineNumber: 1 },
       { type: 'brew', token: 'git', lineNumber: 2 },
       { type: 'cask', token: 'visual-studio-code', lineNumber: 3 },
       { type: 'mas', token: 'Xcode', masId: 497799835, lineNumber: 4 },

@@ -210,7 +210,7 @@ test('imports a Brewfile and preserves complex lines', async ({ page }) => {
   await dropBrewfile(
     page,
     [
-      'tap "homebrew/cask-fonts"',
+      'tap "homebrew/services"',
       'brew "node"',
       'cask "zotero"',
       '# keep this option',
@@ -221,7 +221,7 @@ test('imports a Brewfile and preserves complex lines', async ({ page }) => {
 
   await page.getByRole('button', { name: '置き換え' }).click()
   const content = await downloadBrewfileText(page)
-  expect(content).toContain('tap "homebrew/cask-fonts"')
+  expect(content).toContain('tap "homebrew/services"')
   expect(content).toContain('brew "node"')
   expect(content).toContain('cask "zotero"')
   expect(content).toContain('# keep this option')
@@ -327,9 +327,9 @@ test('adds advanced tap, mas, and raw entries', async ({ page }) => {
 
   await openAdvancedAdd(page)
   await page.getByLabel('種類').selectOption('tap')
-  await page.getByLabel('token / raw line').fill('homebrew/cask-fonts')
+  await page.getByLabel('token / raw line').fill('homebrew/services')
   await page.getByRole('button', { name: '追加' }).click()
-  await expect(selectedItem(page, 'homebrew/cask-fonts')).toBeVisible()
+  await expect(selectedItem(page, 'homebrew/services')).toBeVisible()
 
   await page.getByLabel('種類').selectOption('mas')
   await page.getByLabel('アプリ名').fill('Xcode')
@@ -342,7 +342,7 @@ test('adds advanced tap, mas, and raw entries', async ({ page }) => {
   await page.getByRole('button', { name: '追加' }).click()
 
   await expect(selectedTokenLabels(page)).toHaveText([
-    'homebrew/cask-fonts',
+    'homebrew/services',
     'gh',
     'git',
     'python',

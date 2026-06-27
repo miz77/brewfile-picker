@@ -6,7 +6,7 @@ describe('share codec', () => {
     const payload = {
       version: 1 as const,
       base: { presetId: 'lab-2026', revision: '2026-06-27' },
-      selected: { tap: ['homebrew/cask-fonts'], brew: ['git'], cask: ['zotero'] },
+      selected: { tap: ['homebrew/services'], brew: ['git'], cask: ['zotero'] },
     }
 
     await expect(decodeSharePayload(await encodeSharePayload(payload))).resolves.toEqual(payload)

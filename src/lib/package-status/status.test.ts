@@ -34,7 +34,7 @@ describe('getPackageWarnings', () => {
   })
 
   it('validates tap syntax without requiring index membership', () => {
-    expect(getPackageWarnings({ type: 'tap', token: 'homebrew/cask-fonts' }, null)).toEqual([])
+    expect(getPackageWarnings({ type: 'tap', token: 'homebrew/services' }, null)).toEqual([])
     expect(getPackageWarnings({ type: 'tap', token: 'not-a-tap' }, null).map((warning) => warning.code)).toEqual([
       'invalid-tap',
     ])
