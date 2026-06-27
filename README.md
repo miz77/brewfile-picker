@@ -1,5 +1,7 @@
 # Brewfile Picker
 
+[日本語](README.ja.md) | English
+
 Brewfile Picker is a static web app for searching Homebrew packages, selecting the packages you need, and generating a `Brewfile`.
 
 Open the app: https://brewfile-picker.pages.dev
@@ -28,7 +30,7 @@ This project is not affiliated with the Homebrew project. It uses Homebrew packa
 
 ## Privacy
 
-The app is designed to process imported Brewfiles in the browser. It does not use user accounts, server-side storage, cookies, or custom analytics.
+The app is designed to process imported Brewfiles in the browser. It does not use user accounts or server-side storage for Brewfile contents.
 
 The public page loads the Devicon stylesheet from jsDelivr for the repository icon.
 
@@ -37,6 +39,8 @@ The public page loads the Devicon stylesheet from jsDelivr for the repository ic
 Developer setup, local commands, checks, and package-index notes are documented in [docs/development.md](docs/development.md).
 
 Deployment details for Cloudflare Pages are documented in [docs/deploy.md](docs/deploy.md).
+
+Possible future directions are documented in [ROADMAP.md](ROADMAP.md).
 
 ## Third-Party Notices
 
