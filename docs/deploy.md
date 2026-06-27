@@ -54,10 +54,9 @@ npm run validate:presets
 npm run build
 ```
 
-Then it checks for the Cloudflare Pages project and creates it when missing:
+Then it attempts to create the Cloudflare Pages project. If the project already exists, the workflow continues to deployment:
 
 ```sh
-wrangler pages project list --json
 wrangler pages project create brewfile-picker --production-branch=main
 ```
 
