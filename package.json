@@ -1,0 +1,43 @@
+{
+  "name": "brewfile-picker",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json && tsc -p tsconfig.scripts.json && tsc -p tsconfig.e2e.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "update:index:fixture": "tsx scripts/update-homebrew-index.ts --formula-file tests/fixtures/homebrew/formula.json --cask-file tests/fixtures/homebrew/cask.json",
+    "update:index": "tsx scripts/update-homebrew-index.ts",
+    "check:index": "tsx scripts/check-index-size.ts",
+    "check:index:fixture": "tsx scripts/check-index-size.ts --min-formula-count 1 --min-cask-count 1",
+    "validate:presets": "tsx scripts/validate-presets.ts",
+    "validate:presets:local": "tsx scripts/validate-presets.ts --skip-index",
+    "ci:fixture": "npm run update:index:fixture && npm run check:index:fixture && npm run validate:presets && npm run check && npm test && npm run build"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "@sveltejs/vite-plugin-svelte": "^7.1.2",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/svelte": "^5.4.2",
+    "@tsconfig/svelte": "^5.0.8",
+    "@types/node": "^24.13.2",
+    "jsdom": "^29.1.1",
+    "svelte": "^5.56.3",
+    "svelte-check": "^4.6.0",
+    "tsx": "^4.22.4",
+    "typescript": "~6.0.2",
+    "vite": "^8.1.0",
+    "vitest": "^4.1.9"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.3.1",
+    "tailwindcss": "^4.3.1",
+    "valibot": "^1.4.1",
+    "yaml": "^2.9.0"
+  }
+}

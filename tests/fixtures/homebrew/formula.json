@@ -1,0 +1,48 @@
+[
+  {
+    "name": "git",
+    "full_name": "git",
+    "tap": "homebrew/core",
+    "desc": "Distributed revision control system",
+    "homepage": "https://git-scm.com",
+    "aliases": [],
+    "oldnames": [],
+    "deprecated": false,
+    "disabled": false
+  },
+  {
+    "name": "python@3.14",
+    "full_name": "python@3.14",
+    "tap": "homebrew/core",
+    "desc": "Interpreted, interactive, object-oriented programming language",
+    "homepage": "https://www.python.org/",
+    "aliases": ["python"],
+    "oldnames": [],
+    "deprecated": false,
+    "disabled": false
+  },
+  {
+    "name": "node",
+    "full_name": "node",
+    "tap": "homebrew/core",
+    "desc": "Platform built on V8 to build network applications",
+    "homepage": "https://nodejs.org/",
+    "aliases": [],
+    "oldnames": [],
+    "deprecated": false,
+    "disabled": false
+  },
+  {
+    "name": "old-tool",
+    "full_name": "old-tool",
+    "tap": "homebrew/core",
+    "desc": "Disabled fixture package",
+    "homepage": "https://example.com/old-tool",
+    "aliases": [],
+    "oldnames": [],
+    "deprecated": false,
+    "disabled": true,
+    "disable_reason": "fixture",
+    "disable_replacement_formula": "node"
+  }
+]

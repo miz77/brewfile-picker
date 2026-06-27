@@ -1,0 +1,7 @@
+id: blank
+revision: 2026-06-27
+name:
+  ja: 空の Brewfile
+description:
+  ja: プリセットなしで手動追加や import から始めます。
+sections: []

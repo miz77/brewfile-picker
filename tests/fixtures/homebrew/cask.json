@@ -1,0 +1,22 @@
+[
+  {
+    "token": "visual-studio-code",
+    "full_token": "homebrew/cask/visual-studio-code",
+    "name": ["Visual Studio Code"],
+    "desc": "Open-source code editor",
+    "homepage": "https://code.visualstudio.com/",
+    "old_tokens": ["vscode"],
+    "deprecated": false,
+    "disabled": false
+  },
+  {
+    "token": "zotero",
+    "full_token": "homebrew/cask/zotero",
+    "name": ["Zotero"],
+    "desc": "Collect, organize, cite, and share research sources",
+    "homepage": "https://www.zotero.org/",
+    "old_tokens": [],
+    "deprecated": false,
+    "disabled": false
+  }
+]
