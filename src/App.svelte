@@ -49,6 +49,9 @@
   const installHomebrewCommand =
     '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
   const githubRepositoryUrl = 'https://github.com/miz77/brewfile-picker'
+  const commitSha = import.meta.env.VITE_COMMIT_SHA
+  const shortCommitSha = commitSha ? commitSha.slice(0, 7) : ''
+  const commitUrl = commitSha ? `${githubRepositoryUrl}/commit/${commitSha}` : ''
   const downloadFilenameStorageKey = 'brewfile-picker:download-filename:v1'
 
   let activePreset = initialPreset
@@ -213,10 +216,12 @@
     indexStatus === 'loading'
       ? t('index.loading')
       : indexStatus === 'ready' && packageIndex
-        ? `${t('index.ready')} brew ${packageIndex.counts.formula.toLocaleString()} / cask ${packageIndex.counts.cask.toLocaleString()} ・ ${t('index.updated')} ${formatLocalDateTime(packageIndex.generatedAt)}`
+        ? `brew ${packageIndex.counts.formula.toLocaleString()} / cask ${packageIndex.counts.cask.toLocaleString()}`
         : indexStatus === 'missing'
           ? t('index.missing')
           : `${t('index.error')} ${indexError}`
+  $: indexUpdatedMessage =
+    indexStatus === 'ready' && packageIndex ? `${t('index.updated')} ${formatLocalDateTime(packageIndex.generatedAt)}` : ''
   $: scheduleStateSave(pickerState, autoSaveEnabled)
   $: saveDownloadFilenameSettings(filenameSettingsLoaded, filenameMode, customFilename)
 
@@ -704,17 +709,33 @@
           {t('app.description')}
         </p>
       </div>
-      <div class="flex shrink-0 flex-wrap items-center gap-3 sm:justify-end sm:pt-1">
-        <a
-          class="inline-flex h-7 w-7 items-center justify-center rounded-md text-xl text-zinc-700 outline-none transition hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50"
-          href={githubRepositoryUrl}
-          target="_blank"
-          rel="noreferrer"
-          aria-label="GitHub repositoryを開く"
-        >
-          <i class="devicon-github-original" aria-hidden="true"></i>
-        </a>
-        <p class="text-xs text-zinc-500">{indexStatusMessage}</p>
+      <div class="flex shrink-0 flex-col gap-1 sm:items-end sm:pt-1">
+        <div class="flex items-center gap-2">
+          <a
+            class="inline-flex h-7 w-7 items-center justify-center rounded-md text-xl text-zinc-700 outline-none transition hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50"
+            href={githubRepositoryUrl}
+            target="_blank"
+            rel="noreferrer"
+            aria-label="GitHub repositoryを開く"
+          >
+            <i class="devicon-github-original" aria-hidden="true"></i>
+          </a>
+          {#if shortCommitSha}
+            <a
+              class="font-mono text-xs text-zinc-600 underline-offset-2 hover:text-zinc-950 hover:underline"
+              href={commitUrl}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`Commit ${shortCommitSha}を開く`}
+            >
+              {shortCommitSha}
+            </a>
+          {/if}
+        </div>
+        {#if indexUpdatedMessage}
+          <p class="text-xs text-zinc-500 sm:text-right">{indexUpdatedMessage}</p>
+        {/if}
+        <p class="text-xs text-zinc-500 sm:text-right">{indexStatusMessage}</p>
       </div>
     </header>
 

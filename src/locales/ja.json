@@ -11,7 +11,7 @@
   "summary.selected": "選択中",
   "index.loading": "package-index を読み込み中",
   "index.ready": "package-index 読み込み済み",
-  "index.updated": "更新",
+  "index.updated": "パッケージ情報取得",
   "index.missing": "package-index が未生成です。検索と警告は制限されます。",
   "index.error": "package-index を読み込めませんでした。",
   "search.title": "パッケージ検索",

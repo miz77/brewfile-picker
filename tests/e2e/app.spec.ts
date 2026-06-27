@@ -144,8 +144,8 @@ test('opens the lab preset and updates selection', async ({ page }) => {
   await expect(
     page.getByText('Brewfile をダウンロードすると、実行用コマンドがここに表示されます。'),
   ).toBeVisible()
-  await expect(page.getByText('package-index 読み込み済み')).toBeVisible()
-  await expect(page.getByText(/package-index 読み込み済み.*更新/)).toBeVisible()
+  await expect(page.getByText(/brew [\d,]+ \/ cask [\d,]+/)).toBeVisible()
+  await expect(page.getByText(/パッケージ情報取得/)).toBeVisible()
   await expect(selectedItem(page, 'git')).toBeVisible()
   await expect(selectedItem(page, 'python')).toBeVisible()
   await expect(selectedItem(page, 'visual-studio-code')).toBeVisible()
@@ -335,7 +335,7 @@ test('shows a dialog before downloading disabled packages', async ({ page }) => 
     await route.fulfill({ json: packageIndexWithDisabledFixture() })
   })
   await page.goto('/p/lab-2026')
-  await expect(page.getByText('package-index 読み込み済み')).toBeVisible()
+  await expect(page.getByText(/brew [\d,]+ \/ cask [\d,]+/)).toBeVisible()
 
   await openAdvancedAdd(page)
   await page.getByLabel('token / raw line').fill('old-tool')
