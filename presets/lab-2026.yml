@@ -2,12 +2,15 @@ id: lab-2026
 revision: 2026-06-28
 name:
   ja: 研究室 2026
+  en: Lab 2026
 description:
   ja: 新しい Mac 向けの仮プリセットです。実際の package は後で調整します。
+  en: Temporary preset for new Macs. The actual packages will be adjusted later.
 sections:
   - id: base
     name:
       ja: 基本
+      en: Basics
     packages:
       - type: brew
         token: git
@@ -21,6 +24,7 @@ sections:
   - id: apps
     name:
       ja: アプリ
+      en: Apps
     packages:
       - type: cask
         token: visual-studio-code

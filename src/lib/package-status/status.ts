@@ -1,4 +1,5 @@
 import { findIndexEntry } from '../homebrew-index/lookup'
+import type { MessageKey } from '../i18n/t'
 import type { PackageIndex } from '../schemas/packageIndex'
 import type { PackageType } from '../schemas/preset'
 
@@ -7,7 +8,7 @@ export type PackageWarningCode = 'invalid-token' | 'invalid-tap' | 'unknown' | '
 export type PackageWarning = {
   code: PackageWarningCode
   severity: 'warning' | 'danger'
-  message: string
+  messageKey: MessageKey
   replacement?: string | null
 }
 
@@ -29,7 +30,7 @@ function validateToken(pkg: WarningInput): PackageWarning[] {
       {
         code: 'invalid-token',
         severity: 'danger',
-        message: 'token に空白、引用符、改行は使えません。',
+        messageKey: 'warning.invalidToken',
       },
     ]
   }
@@ -38,7 +39,7 @@ function validateToken(pkg: WarningInput): PackageWarning[] {
       {
         code: 'invalid-tap',
         severity: 'warning',
-        message: 'tap は owner/repo 形式で入力してください。',
+        messageKey: 'warning.invalidTap',
       },
     ]
   }
@@ -61,7 +62,7 @@ export function getPackageWarnings(pkg: WarningInput, index: PackageIndex | null
       {
         code: 'unknown',
         severity: 'warning',
-        message: '現在の package-index に見つかりません。名前を確認してください。',
+        messageKey: 'warning.unknown',
       },
     ]
   }
@@ -69,7 +70,7 @@ export function getPackageWarnings(pkg: WarningInput, index: PackageIndex | null
     warnings.push({
       code: 'deprecated',
       severity: 'warning',
-      message: 'Homebrew 側で deprecated とされています。',
+      messageKey: 'warning.deprecated',
       replacement: entry.replacement,
     })
   }
@@ -77,7 +78,7 @@ export function getPackageWarnings(pkg: WarningInput, index: PackageIndex | null
     warnings.push({
       code: 'disabled',
       severity: 'danger',
-      message: 'Homebrew 側で disabled とされています。',
+      messageKey: 'warning.disabled',
       replacement: entry.replacement,
     })
   }

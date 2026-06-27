@@ -5,8 +5,16 @@
   import { parseBrewfile, type ParsedBrewfile } from './lib/brewfile-parser/parser'
   import { exportBrewfile } from './lib/brewfile-exporter/exporter'
   import { loadPackageIndex } from './lib/homebrew-index/load'
-  import { formatLocalText } from './lib/i18n/locale'
-  import { t } from './lib/i18n/t'
+  import {
+    formatLocalText,
+    intlLocale,
+    isLocale,
+    locale,
+    setLocale,
+    supportedLocales,
+    type Locale,
+  } from './lib/i18n/locale'
+  import { createTranslator, type Translator } from './lib/i18n/t'
   import { searchPackageIndex, type PackageSearchResult } from './lib/package-search/search'
   import { getPackageWarnings, hasDisabledWarning } from './lib/package-status/status'
   import { getPresetById, listPresets } from './lib/presets/presets'
@@ -97,6 +105,9 @@
   let lastDownloadSequence = 0
   let saveTimer: number | undefined
   let copyStatusTimer: number | undefined
+  let t: Translator = createTranslator('ja')
+
+  $: t = createTranslator($locale)
 
   onMount(() => {
     initializeFilenameSettings()
@@ -235,7 +246,9 @@
           ? t('index.missing')
           : `${t('index.error')} ${indexError}`
   $: indexUpdatedMessage =
-    indexStatus === 'ready' && packageIndex ? `${t('index.updated')} ${formatLocalDateTime(packageIndex.generatedAt)}` : ''
+    indexStatus === 'ready' && packageIndex
+      ? `${t('index.updated')} ${formatLocalDateTime(packageIndex.generatedAt, $locale)}`
+      : ''
   $: scheduleStateSave(pickerState, autoSaveEnabled)
   $: saveDownloadFilenameSettings(filenameSettingsLoaded, filenameMode, customFilename)
 
@@ -265,13 +278,13 @@
     return selectedPackageTypeOrder[a.type] - selectedPackageTypeOrder[b.type] || compareText(a.token, b.token)
   }
 
-  function formatLocalDateTime(value: string): string {
+  function formatLocalDateTime(value: string, currentLocale: Locale): string {
     const date = new Date(value)
     if (Number.isNaN(date.getTime())) {
       return value
     }
 
-    return new Intl.DateTimeFormat(undefined, {
+    return new Intl.DateTimeFormat(intlLocale(currentLocale), {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
@@ -279,6 +292,17 @@
       minute: '2-digit',
       timeZoneName: 'short',
     }).format(date)
+  }
+
+  function changeLocale(event: Event) {
+    const nextLocale = (event.currentTarget as HTMLSelectElement).value
+    if (isLocale(nextLocale)) {
+      setLocale(nextLocale)
+    }
+  }
+
+  function copyAriaLabel(label: string, currentLocale: Locale): string {
+    return currentLocale === 'ja' ? `${label}をコピー` : `${t('a11y.copy')} ${label}`
   }
 
   function changePreset(event: Event) {
@@ -293,7 +317,7 @@
     parsedImport = null
     clearShareOutput()
     window.history.pushState({}, '', `/p/${nextPreset.id}`)
-    liveMessage = `${formatLocalText(nextPreset.name)} ${t('preset.changed')}`
+    liveMessage = `${formatLocalText(nextPreset.name, $locale)} ${t('preset.changed')}`
   }
 
   function toggleSearchResult(result: PackageSearchResult) {
@@ -649,7 +673,7 @@
       (warning) => warning.code === 'invalid-token' || warning.code === 'invalid-tap',
     )
     if (invalidWarning) {
-      advancedError = invalidWarning.message
+      advancedError = t(invalidWarning.messageKey)
       return
     }
 
@@ -742,12 +766,25 @@
       </div>
       <div class="flex shrink-0 flex-col gap-1 sm:items-end sm:pt-1">
         <div class="flex items-center gap-2">
+          <label class="sr-only" for="locale-select">{t('locale.select')}</label>
+          <select
+            id="locale-select"
+            class="h-7 rounded-md border border-zinc-300 bg-white px-2 text-xs font-medium text-zinc-700 outline-none transition focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-soft)]"
+            value={$locale}
+            onchange={changeLocale}
+          >
+            {#each supportedLocales as localeOption}
+              <option value={localeOption}>
+                {localeOption === 'ja' ? t('locale.ja') : t('locale.en')}
+              </option>
+            {/each}
+          </select>
           <a
             class="inline-flex h-7 w-7 items-center justify-center rounded-md text-xl text-zinc-700 outline-none transition hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50"
             href={githubRepositoryUrl}
             target="_blank"
             rel="noreferrer"
-            aria-label="GitHub repositoryを開く"
+            aria-label={t('a11y.githubRepository')}
           >
             <i class="devicon-github-original" aria-hidden="true"></i>
           </a>
@@ -757,7 +794,7 @@
               href={commitUrl}
               target="_blank"
               rel="noreferrer"
-              aria-label={`Commit ${shortCommitSha}を開く`}
+              aria-label={`${t('a11y.openCommit')} ${shortCommitSha}`}
             >
               {shortCommitSha}
             </a>
@@ -780,7 +817,7 @@
           onchange={changePreset}
         >
           {#each availablePresets as preset}
-            <option value={preset.id}>{formatLocalText(preset.name)}</option>
+            <option value={preset.id}>{formatLocalText(preset.name, $locale)}</option>
           {/each}
         </select>
       </div>
@@ -1048,7 +1085,7 @@
               >
                 {#if copiedTarget === 'share-url'}
                   <Check class="h-4 w-4 text-emerald-700" aria-hidden="true" />
-                  <span class="text-emerald-700">Copied!</span>
+                  <span class="text-emerald-700">{t('ui.copied')}</span>
                 {:else}
                   <Link class="h-4 w-4" aria-hidden="true" />
                   <span class="whitespace-nowrap">{t('share.create')}</span>
@@ -1116,7 +1153,7 @@
             <ul class="mt-2 space-y-1 text-sm leading-6 text-amber-900">
               {#each selectedWarningRows as row}
                 <li>
-                  <span class="font-medium">{row.pkg.token}</span>: {row.warning.message}
+                  <span class="font-medium">{row.pkg.token}</span>: {t(row.warning.messageKey)}
                   {#if row.warning.replacement}
                     <span>{t('warning.replacement')} {row.warning.replacement}</span>
                   {/if}
@@ -1139,7 +1176,7 @@
                   type="button"
                   class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-zinc-300 text-zinc-700 outline-none transition hover:border-zinc-400 hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2"
                   title={t('brewfile.copy')}
-                  aria-label={`${t('install.homebrew')}をコピー`}
+                  aria-label={copyAriaLabel(t('install.homebrew'), $locale)}
                   onclick={() => copyText(installHomebrewCommand, t('install.homebrew'), 'install-homebrew')}
                 >
                   {#if copiedTarget === 'install-homebrew'}
@@ -1150,7 +1187,7 @@
                 </button>
               </div>
               {#if copiedTarget === 'install-homebrew'}
-                <p class="mt-1 text-right text-xs font-medium text-emerald-700">Copied!</p>
+                <p class="mt-1 text-right text-xs font-medium text-emerald-700">{t('ui.copied')}</p>
               {/if}
               <pre class="mt-2 overflow-auto rounded-md bg-zinc-950 p-3 text-xs leading-5 text-zinc-50"><code>{installHomebrewCommand}</code></pre>
             </div>
@@ -1165,7 +1202,7 @@
                     type="button"
                     class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-zinc-300 text-zinc-700 outline-none transition hover:border-zinc-400 hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2"
                     title={t('brewfile.copy')}
-                    aria-label={`${t('install.bundle')}をコピー`}
+                    aria-label={copyAriaLabel(t('install.bundle'), $locale)}
                     onclick={() => copyText(runBrewBundleCommand, t('install.bundle'), 'install-bundle')}
                   >
                     {#if copiedTarget === 'install-bundle'}
@@ -1177,7 +1214,7 @@
                 {/if}
               </div>
               {#if copiedTarget === 'install-bundle'}
-                <p class="mt-1 text-right text-xs font-medium text-emerald-700">Copied!</p>
+                <p class="mt-1 text-right text-xs font-medium text-emerald-700">{t('ui.copied')}</p>
               {/if}
               {#if downloadedBrewfileFilename}
                 <pre class="mt-2 overflow-auto rounded-md bg-zinc-950 p-3 text-xs leading-5 text-zinc-50"><code>{runBrewBundleCommand}</code></pre>
@@ -1202,7 +1239,7 @@
         </a>
         {t('footer.homebrewThanksAfter')}
       </p>
-      <nav class="flex flex-wrap items-center gap-x-2 gap-y-1" aria-label="Legal links">
+      <nav class="flex flex-wrap items-center gap-x-2 gap-y-1" aria-label={t('a11y.legalLinks')}>
         <a
           class="underline-offset-2 transition hover:text-[var(--brand-strong)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50"
           href={licenseUrl}

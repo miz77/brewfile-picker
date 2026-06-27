@@ -2,6 +2,8 @@ id: blank
 revision: 2026-06-27
 name:
   ja: なし
+  en: None
 description:
   ja: プリセットなしで手動追加や import から始めます。
+  en: Start without a preset, then add items manually or import a Brewfile.
 sections: []
