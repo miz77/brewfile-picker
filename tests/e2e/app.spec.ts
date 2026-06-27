@@ -1,6 +1,16 @@
 import { expect, test, type Page } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
 
+test.beforeEach(async ({ context, page }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  await page.route('https://cdn.jsdelivr.net/gh/devicons/devicon@latest/devicon.min.css', async (route) => {
+    await route.fulfill({
+      contentType: 'text/css',
+      body: '.devicon-github-original::before { content: ""; }',
+    })
+  })
+})
+
 async function openAdvancedAdd(page: Page) {
   const advancedPanel = page.locator('details').filter({ hasText: 'Advanced add' })
   const isOpen = await advancedPanel.evaluate((element) => (element as HTMLDetailsElement).open)
@@ -10,19 +20,28 @@ async function openAdvancedAdd(page: Page) {
 }
 
 async function removeSelectedPackage(page: Page, token: string) {
-  await page
-    .getByRole('listitem')
-    .filter({ hasText: token })
-    .getByRole('button', { name: '解除' })
-    .click()
+  await selectedItem(page, token).getByRole('button', { name: '解除' }).click()
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 function selectedItem(page: Page, token: string) {
+  return selectedListItems(page).filter({
+    has: page.getByText(new RegExp(`^${escapeRegExp(token)}$`)),
+  })
+}
+
+function selectedListItems(page: Page) {
   return page
     .getByRole('heading', { name: /選択中の項目/ })
     .locator('xpath=ancestor::section[1]')
     .getByRole('listitem')
-    .filter({ hasText: token })
+}
+
+function selectedTokenLabels(page: Page) {
+  return selectedListItems(page).locator('span:nth-of-type(2)')
 }
 
 async function dropBrewfile(page: Page, content: string) {
@@ -34,12 +53,21 @@ async function dropBrewfile(page: Page, content: string) {
   }, content)
 }
 
-async function downloadBrewfileText(page: Page): Promise<string> {
+async function downloadBrewfileText(
+  page: Page,
+  expectedFilename: RegExp | string = /^Brewfile-\d{8}-\d{6}(?:-\d+)?$/,
+): Promise<string> {
   const downloadPromise = page.waitForEvent('download')
   await page.getByRole('button', { name: 'ダウンロード' }).click()
   const download = await downloadPromise
   const path = await download.path()
-  expect(download.suggestedFilename()).toBe('Brewfile')
+  const suggestedFilename = download.suggestedFilename()
+  if (typeof expectedFilename === 'string') {
+    expect(suggestedFilename).toBe(expectedFilename)
+  } else {
+    expect(suggestedFilename).toMatch(expectedFilename)
+  }
+  await expect(page.getByText(`brew bundle --file "$HOME/Downloads/${suggestedFilename}"`)).toBeVisible()
   expect(path).not.toBeNull()
   if (!path) {
     throw new Error('Download path was not available')
@@ -117,19 +145,51 @@ test('opens the lab preset and updates selection', async ({ page }) => {
 
   await page.goto('/p/lab-2026')
   await expect(page.getByRole('heading', { name: 'Brewfile Picker' })).toBeVisible()
-  await expect(page.getByText('package-index 読み込み済み')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'GitHub repositoryを開く' })).toHaveAttribute(
+    'href',
+    'https://github.com/miz77/brewfile-picker',
+  )
+  await expect(page.getByText('brew bundle --file')).toHaveCount(0)
+  await expect(
+    page.getByText('Brewfile をダウンロードすると、実行用コマンドがここに表示されます。'),
+  ).toBeVisible()
+  await expect(page.getByText(/brew [\d,]+ \/ cask [\d,]+/)).toBeVisible()
+  await expect(page.getByText(/パッケージ情報取得/)).toBeVisible()
+  await expect(selectedItem(page, 'gh')).toBeVisible()
   await expect(selectedItem(page, 'git')).toBeVisible()
   await expect(selectedItem(page, 'python')).toBeVisible()
+  await expect(selectedItem(page, 'ghostty')).toBeVisible()
   await expect(selectedItem(page, 'visual-studio-code')).toBeVisible()
 
+  await page.getByRole('button', { name: '選択中の項目を折りたたむ' }).click()
+  await expect(selectedItem(page, 'git')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'リンクをコピー' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'ダウンロード' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'インストール手順' })).toBeVisible()
+  await page.getByRole('button', { name: '選択中の項目を展開' }).click()
+  await expect(selectedItem(page, 'git')).toBeVisible()
+
+  await page.getByRole('searchbox').fill('git')
+  await page.getByRole('button', { name: 'git 解除' }).click()
+  await expect(selectedItem(page, 'git')).toHaveCount(0)
+  await page.getByRole('button', { name: 'git 追加' }).click()
+  await expect(selectedItem(page, 'git')).toBeVisible()
   await removeSelectedPackage(page, 'git')
   await expect(selectedItem(page, 'git')).toHaveCount(0)
 
   await page.getByRole('searchbox').fill('zotero')
-  await page.getByRole('button', { name: '追加' }).first().click()
+  await page.getByRole('button', { name: 'zotero 追加' }).click()
   await expect(selectedItem(page, 'zotero')).toBeVisible()
 
   expect(externalRequests).toEqual([])
+})
+
+test('opens the blank preset on the root route', async ({ page }) => {
+  await page.goto('/')
+
+  await expect(page.getByLabel('プリセット')).toHaveValue('blank')
+  await expect(page.getByText('まだ何も選択されていません。')).toBeVisible()
+  await expect(selectedItem(page, 'git')).toHaveCount(0)
 })
 
 test('switches presets from the preset selector', async ({ page }) => {
@@ -150,7 +210,7 @@ test('imports a Brewfile and preserves complex lines', async ({ page }) => {
   await dropBrewfile(
     page,
     [
-      'tap "homebrew/cask-fonts"',
+      'tap "homebrew/services"',
       'brew "node"',
       'cask "zotero"',
       '# keep this option',
@@ -161,7 +221,7 @@ test('imports a Brewfile and preserves complex lines', async ({ page }) => {
 
   await page.getByRole('button', { name: '置き換え' }).click()
   const content = await downloadBrewfileText(page)
-  expect(content).toContain('tap "homebrew/cask-fonts"')
+  expect(content).toContain('tap "homebrew/services"')
   expect(content).toContain('brew "node"')
   expect(content).toContain('cask "zotero"')
   expect(content).toContain('# keep this option')
@@ -172,6 +232,20 @@ test('downloads the generated Brewfile', async ({ page }) => {
   await page.goto('/p/lab-2026')
 
   await expect(downloadBrewfileText(page)).resolves.toContain('brew "git"')
+})
+
+test('configures the downloaded Brewfile filename', async ({ page }) => {
+  await page.goto('/p/lab-2026')
+  await expect(page.getByText('Brewfile-YYYYMMDD-HHMMSS')).toBeVisible()
+
+  await page.getByLabel('ファイル名').selectOption('plain')
+  await expect(downloadBrewfileText(page, 'Brewfile')).resolves.toContain('brew "git"')
+  await expect(page.getByText('同名ファイルがある場合は、Downloads 内の実際のファイル名に合わせてください。')).toBeVisible()
+
+  await page.getByLabel('ファイル名').selectOption('custom')
+  await page.getByLabel('カスタム名').fill('lab/mac:setup')
+  await expect(page.getByText('lab-mac-setup')).toBeVisible()
+  await expect(downloadBrewfileText(page, 'lab-mac-setup')).resolves.toContain('brew "git"')
 })
 
 test('creates and restores a share URL without preserving mas or raw lines', async ({ page }) => {
@@ -187,18 +261,34 @@ test('creates and restores a share URL without preserving mas or raw lines', asy
   await page.getByLabel('token / raw line').fill('vscode "svelte.svelte-vscode"')
   await page.getByRole('button', { name: '追加' }).click()
 
-  await page.getByRole('button', { name: 'URLをコピー' }).click()
-  await expect(page.getByLabel('共有URL')).toBeVisible()
+  await page.getByRole('button', { name: 'リンクをコピー' }).click()
+  await expect(page.getByRole('button', { name: 'Copied!' })).toBeVisible()
   await expect(page.getByText('2 件の項目はURL共有に含めません。')).toBeVisible()
-  const shareUrl = await page.getByLabel('共有URL').inputValue()
+  const shareUrl = await page.evaluate(() => navigator.clipboard.readText())
 
   await page.goto('about:blank')
   await page.goto(shareUrl)
+  await expect(selectedItem(page, 'gh')).toBeVisible()
   await expect(selectedItem(page, 'python')).toBeVisible()
+  await expect(selectedItem(page, 'ghostty')).toBeVisible()
   await expect(selectedItem(page, 'visual-studio-code')).toBeVisible()
   await expect(selectedItem(page, 'git')).toHaveCount(0)
   await expect(selectedItem(page, 'Xcode')).toHaveCount(0)
   await expect(downloadBrewfileText(page)).resolves.not.toContain('vscode "svelte.svelte-vscode"')
+
+  await openAdvancedAdd(page)
+  await page.getByLabel('種類').selectOption('brew')
+  await page.getByLabel('token / raw line').fill('node')
+  await page.getByRole('button', { name: '追加' }).click()
+  await expect(selectedItem(page, 'node')).toBeVisible()
+  await expect(page).toHaveURL(/\/p\/lab-2026$/)
+  await page.waitForTimeout(400)
+
+  await page.reload()
+  await expect(page.getByText('前回の作業がこのブラウザに残っています。')).toBeVisible()
+  await expect(selectedItem(page, 'node')).toHaveCount(0)
+  await page.getByRole('button', { name: '復元' }).click()
+  await expect(selectedItem(page, 'node')).toBeVisible()
 })
 
 test('offers localStorage restore on the default route', async ({ page }) => {
@@ -209,8 +299,11 @@ test('offers localStorage restore on the default route', async ({ page }) => {
 
   await page.goto('/')
   await expect(page.getByText('前回の作業がこのブラウザに残っています。')).toBeVisible()
-  await expect(selectedItem(page, 'git')).toBeVisible()
+  await expect(page.getByLabel('プリセット')).toHaveValue('blank')
+  await expect(page.getByText('まだ何も選択されていません。')).toBeVisible()
+  await expect(selectedItem(page, 'git')).toHaveCount(0)
   await page.getByRole('button', { name: '復元' }).click()
+  await expect(page).toHaveURL(/\/p\/lab-2026$/)
   await expect(selectedItem(page, 'git')).toHaveCount(0)
 })
 
@@ -234,9 +327,9 @@ test('adds advanced tap, mas, and raw entries', async ({ page }) => {
 
   await openAdvancedAdd(page)
   await page.getByLabel('種類').selectOption('tap')
-  await page.getByLabel('token / raw line').fill('homebrew/cask-fonts')
+  await page.getByLabel('token / raw line').fill('homebrew/services')
   await page.getByRole('button', { name: '追加' }).click()
-  await expect(selectedItem(page, 'homebrew/cask-fonts')).toBeVisible()
+  await expect(selectedItem(page, 'homebrew/services')).toBeVisible()
 
   await page.getByLabel('種類').selectOption('mas')
   await page.getByLabel('アプリ名').fill('Xcode')
@@ -247,6 +340,18 @@ test('adds advanced tap, mas, and raw entries', async ({ page }) => {
   await page.getByLabel('種類').selectOption('raw')
   await page.getByLabel('token / raw line').fill('vscode "svelte.svelte-vscode"')
   await page.getByRole('button', { name: '追加' }).click()
+
+  await expect(selectedTokenLabels(page)).toHaveText([
+    'homebrew/services',
+    'gh',
+    'git',
+    'python',
+    'ghostty',
+    'visual-studio-code',
+    'Xcode',
+    'vscode "svelte.svelte-vscode"',
+  ])
+
   await expect(downloadBrewfileText(page)).resolves.toContain('vscode "svelte.svelte-vscode"')
 })
 
@@ -279,7 +384,7 @@ test('shows a dialog before downloading disabled packages', async ({ page }) => 
     await route.fulfill({ json: packageIndexWithDisabledFixture() })
   })
   await page.goto('/p/lab-2026')
-  await expect(page.getByText('package-index 読み込み済み')).toBeVisible()
+  await expect(page.getByText(/brew [\d,]+ \/ cask [\d,]+/)).toBeVisible()
 
   await openAdvancedAdd(page)
   await page.getByLabel('token / raw line').fill('old-tool')

@@ -1,7 +1,7 @@
 id: lab-2026
-revision: 2026-06-27
+revision: 2026-06-28
 name:
-  ja: 研究室標準 2026
+  ja: 研究室 2026
 description:
   ja: 新しい Mac 向けの仮プリセットです。実際の package は後で調整します。
 sections:
@@ -15,6 +15,9 @@ sections:
       - type: brew
         token: python
         selected: true
+      - type: brew
+        token: gh
+        selected: true
   - id: apps
     name:
       ja: アプリ
@@ -23,5 +26,5 @@ sections:
         token: visual-studio-code
         selected: true
       - type: cask
-        token: zotero
-        selected: false
+        token: ghostty
+        selected: true

@@ -12,7 +12,7 @@ Use this before publishing the MVP.
 - [x] Unknown, deprecated, and disabled package warnings are displayed.
 - [x] Disabled package download uses an in-app confirmation dialog.
 - [x] Brewfile download reflects selection changes.
-- [x] Brewfile download works and uses `Brewfile` as the suggested filename.
+- [x] Brewfile download works with timestamped, plain, and custom filenames.
 - [x] Install commands are visible and copyable.
 
 ## Import And Export
@@ -45,6 +45,6 @@ Use this before publishing the MVP.
 ## Remaining Before Real Use
 
 - [ ] Replace placeholder `lab-2026` package list with the real lab package set.
-- [ ] Confirm the first public `pages.dev` deployment.
+- [x] Confirm the first public `pages.dev` deployment.
 - [ ] Run the browser smoke checklist on at least Chrome and Safari.
 - [ ] Decide whether `miz7.net` should be attached after the initial `pages.dev` release.

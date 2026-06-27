@@ -1,83 +1,50 @@
 # Brewfile Picker
 
-Brewfile Picker is a static web app for building Homebrew `Brewfile`s from curated presets.
+Brewfile Picker is a static web app for searching Homebrew packages, selecting the packages you need, and generating a `Brewfile`.
 
-This project is not affiliated with the Homebrew project. It uses Homebrew metadata to help users prepare a `Brewfile`; installing the generated file remains the user's responsibility.
+Open the app: https://brewfile-picker.pages.dev
 
-## Current MVP Features
+This project is not affiliated with the Homebrew project. It uses Homebrew package metadata to help users prepare a `Brewfile`; installing the generated file remains the user's responsibility.
 
-- Choose presets, including `lab-2026` and a blank Brewfile.
-- Search formulae and casks from the generated Homebrew package index.
-- Select packages and export a stable `Brewfile`.
+## What You Can Do
+
+- Start from a preset such as `研究室 2026`, or from an empty Brewfile.
+- Search Homebrew formulae and casks.
+- Click package rows to add or remove them from the selected list.
 - Import an existing Brewfile by file selection or drag and drop.
-- Preserve complex Brewfile lines as passthrough.
-- Add manual `brew`, `cask`, `tap`, `mas`, or raw passthrough entries.
-- Save work in `localStorage`.
-- Create share URLs from selected `brew`, `cask`, and `tap` entries.
+- Keep complex Brewfile lines as passthrough entries.
+- Download the generated Brewfile with a timestamped, plain, or custom filename.
+- Copy a share link for selected `tap`, `brew`, and `cask` entries.
+- Keep edits in the browser with local autosave.
 
-## Development
+## Basic Usage
 
-```sh
-npm install
-npm run update:index
-npm run dev
-```
-
-The generated `public/package-index.json` is intentionally ignored by Git. It is a build/deploy artifact.
-
-## Checks
-
-```sh
-npm run check
-npm run lint
-npm test
-npm run validate:presets
-npm run check:index
-npm run build
-```
-
-For a PR-style local check that does not call the Homebrew API:
-
-```sh
-npm run ci:fixture
-```
-
-Fixture-based CI checks can be run without accessing the Homebrew API:
-
-```sh
-npm run update:index:fixture
-npm run check:index:fixture
-npm run validate:presets
-npm run build
-```
-
-E2E tests use Playwright against the production preview:
-
-```sh
-npx playwright install --with-deps chromium
-npm run build
-npm run test:e2e
-```
-
-## Deployment
-
-The deploy workflow generates `public/package-index.json`, validates it, builds `dist/`, and deploys that artifact to Cloudflare Pages. See [docs/deploy.md](docs/deploy.md).
-
-Configure these GitHub repository secrets before enabling deployment:
-
-- `CLOUDFLARE_API_TOKEN`
-- `CLOUDFLARE_ACCOUNT_ID`
-
-The Cloudflare Pages project name is `brewfile-picker`.
-
-## Release Checks
-
-- [Acceptance checklist](docs/acceptance-checklist.md)
-- [Browser smoke checklist](docs/browser-smoke.md)
+1. Open https://brewfile-picker.pages.dev.
+2. Choose a preset, or choose `なし` to start empty.
+3. Search for packages and select the ones you need.
+4. Import an existing Brewfile if you want to use it as a starting point.
+5. Download the generated Brewfile.
+6. Review the displayed Homebrew install and `brew bundle` commands before running them.
 
 ## Privacy
 
-The app is designed to process imported Brewfiles in the browser. The MVP does not use user accounts, server-side storage, cookies, or custom analytics.
+The app is designed to process imported Brewfiles in the browser. It does not use user accounts, server-side storage, cookies, or custom analytics.
+
+The public page loads the Devicon stylesheet from jsDelivr for the repository icon.
+
+## Development
+
+Developer setup, local commands, checks, and package-index notes are documented in [docs/development.md](docs/development.md).
+
+Deployment details for Cloudflare Pages are documented in [docs/deploy.md](docs/deploy.md).
+
+## Third-Party Notices
+
+Package metadata is derived from the Homebrew Formulae JSON API. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for Homebrew-related notices and attribution.
+
+## Acknowledgements
+
+Thanks to the Homebrew maintainers and contributors for making Homebrew and its package metadata available to the community.
 
 ## License
 

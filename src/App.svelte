@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Check, ChevronDown, ChevronUp, Clipboard, Link } from '@lucide/svelte'
   import { onDestroy, onMount } from 'svelte'
   import { createStateFromParsedBrewfile, mergeParsedBrewfileIntoState } from './lib/brewfile-parser/importState'
   import { parseBrewfile, type ParsedBrewfile } from './lib/brewfile-parser/parser'
@@ -33,14 +34,36 @@
 
   type IndexStatus = 'loading' | 'ready' | 'missing' | 'error'
   type AdvancedType = PackageType | 'raw'
+  type CopyTarget = 'install-homebrew' | 'install-bundle' | 'share-url'
+  type FilenameMode = 'timestamp' | 'plain' | 'custom'
+
+  type DownloadFilenameSettings = {
+    mode: FilenameMode
+    customName: string
+  }
 
   const routePresetId = getPresetIdFromPath(window.location.pathname)
   const availablePresets = listPresets()
-  const initialPreset = getPresetById(routePresetId ?? 'lab-2026')
+  const initialPreset = getPresetById(routePresetId ?? 'blank')
   const advancedTypes: AdvancedType[] = ['brew', 'cask', 'tap', 'mas', 'raw']
   const installHomebrewCommand =
     '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
-  const runBrewBundleCommand = 'brew bundle --file Brewfile'
+  const selectedPackageTypeOrder: Record<PackageType, number> = {
+    tap: 0,
+    brew: 1,
+    cask: 2,
+    mas: 3,
+  }
+  const selectedPackageCollator = new Intl.Collator('en', { numeric: true, sensitivity: 'base' })
+  const homebrewUrl = 'https://brew.sh/'
+  const githubRepositoryUrl = 'https://github.com/miz77/brewfile-picker'
+  const commitSha = import.meta.env.VITE_COMMIT_SHA
+  const shortCommitSha = commitSha ? commitSha.slice(0, 7) : ''
+  const commitUrl = commitSha ? `${githubRepositoryUrl}/commit/${commitSha}` : ''
+  const repositoryBlobRef = commitSha || 'main'
+  const licenseUrl = `${githubRepositoryUrl}/blob/${repositoryBlobRef}/LICENSE`
+  const thirdPartyNoticesUrl = `${githubRepositoryUrl}/blob/${repositoryBlobRef}/THIRD_PARTY_NOTICES.md`
+  const downloadFilenameStorageKey = 'brewfile-picker:download-filename:v1'
 
   let activePreset = initialPreset
   let pickerState = createPickerStateFromPreset(activePreset)
@@ -52,6 +75,12 @@
   let startupMessage = ''
   let shareUrl = ''
   let shareMessage = ''
+  let copiedTarget: CopyTarget | null = null
+  let downloadedBrewfileFilename = ''
+  let downloadedBrewfileFilenameMayCollide = false
+  let filenameMode: FilenameMode = 'timestamp'
+  let customFilename = 'Brewfile'
+  let filenameSettingsLoaded = false
   let importError = ''
   let parsedImport: ParsedBrewfile | null = null
   let advancedType: AdvancedType = 'brew'
@@ -59,13 +88,18 @@
   let advancedMasId = ''
   let advancedError = ''
   let isDragActive = false
+  let isSelectedListCollapsed = false
   let showDisabledDownloadDialog = false
   let dragDepth = 0
   let pendingStoredState: StoredPickerState | null = null
   let autoSaveEnabled = false
+  let lastDownloadBaseFilename = ''
+  let lastDownloadSequence = 0
   let saveTimer: number | undefined
+  let copyStatusTimer: number | undefined
 
   onMount(() => {
+    initializeFilenameSettings()
     void initializeState()
     void initializeIndex()
   })
@@ -73,6 +107,9 @@
   onDestroy(() => {
     if (saveTimer !== undefined) {
       window.clearTimeout(saveTimer)
+    }
+    if (copyStatusTimer !== undefined) {
+      window.clearTimeout(copyStatusTimer)
     }
   })
 
@@ -84,6 +121,39 @@
       indexStatus = 'error'
       indexError = error instanceof Error ? error.message : String(error)
     }
+  }
+
+  function isFilenameMode(value: unknown): value is FilenameMode {
+    return value === 'timestamp' || value === 'plain' || value === 'custom'
+  }
+
+  function parseDownloadFilenameSettings(value: unknown): DownloadFilenameSettings | null {
+    if (!value || typeof value !== 'object') {
+      return null
+    }
+    const settings = value as Record<string, unknown>
+    if (!isFilenameMode(settings.mode)) {
+      return null
+    }
+
+    return {
+      mode: settings.mode,
+      customName: typeof settings.customName === 'string' ? settings.customName : 'Brewfile',
+    }
+  }
+
+  function initializeFilenameSettings() {
+    try {
+      const raw = globalThis.localStorage?.getItem(downloadFilenameStorageKey)
+      const settings = raw ? parseDownloadFilenameSettings(JSON.parse(raw)) : null
+      if (settings) {
+        filenameMode = settings.mode
+        customFilename = settings.customName
+      }
+    } catch {
+      globalThis.localStorage?.removeItem(downloadFilenameStorageKey)
+    }
+    filenameSettingsLoaded = true
   }
 
   async function initializeState() {
@@ -118,6 +188,8 @@
   }
 
   $: selectedPackages = getSelectedPackages(pickerState)
+  $: sortedSelectedPackages = [...selectedPackages].sort(compareSelectedPackages)
+  $: sortedPassthroughEntries = [...pickerState.passthrough].sort((a, b) => compareText(a.line, b.line))
   $: selectedPackageKeys = new Set(selectedPackages.map(packageKey))
   $: presetPackageKeys = new Set(
     pickerState.packages.filter((pkg) => pkg.source === 'preset').map(packageKey),
@@ -128,6 +200,24 @@
     limit: 12,
   })
   $: brewfilePreview = exportBrewfile(pickerState)
+  $: runBrewBundleCommand = downloadedBrewfileFilename
+    ? `brew bundle --file "$HOME/Downloads/${downloadedBrewfileFilename}"`
+    : ''
+  $: sanitizedCustomFilename = sanitizeDownloadFilename(customFilename)
+  $: downloadFilenamePreview =
+    filenameMode === 'timestamp'
+      ? t('filename.previewTimestamp')
+      : filenameMode === 'plain'
+        ? 'Brewfile'
+        : sanitizedCustomFilename
+  $: downloadFilenameError =
+    filenameMode === 'custom' && customFilename.trim().length === 0 ? t('filename.customRequired') : ''
+  $: canDownloadBrewfile = brewfilePreview.length > 0 && downloadFilenameError.length === 0
+  $: installBundleNote = !downloadedBrewfileFilename
+    ? t('install.bundlePending')
+    : downloadedBrewfileFilenameMayCollide
+      ? t('install.bundleNoteCollision')
+      : t('install.bundleNote')
   $: importPackageCount = parsedImport?.packages.length ?? 0
   $: importPassthroughCount = parsedImport?.passthrough.length ?? 0
   $: selectedWarningRows = selectedPackages.flatMap((pkg) =>
@@ -140,11 +230,14 @@
     indexStatus === 'loading'
       ? t('index.loading')
       : indexStatus === 'ready' && packageIndex
-        ? `${t('index.ready')} brew ${packageIndex.counts.formula.toLocaleString()} / cask ${packageIndex.counts.cask.toLocaleString()}`
+        ? `brew ${packageIndex.counts.formula.toLocaleString()} / cask ${packageIndex.counts.cask.toLocaleString()}`
         : indexStatus === 'missing'
           ? t('index.missing')
           : `${t('index.error')} ${indexError}`
+  $: indexUpdatedMessage =
+    indexStatus === 'ready' && packageIndex ? `${t('index.updated')} ${formatLocalDateTime(packageIndex.generatedAt)}` : ''
   $: scheduleStateSave(pickerState, autoSaveEnabled)
+  $: saveDownloadFilenameSettings(filenameSettingsLoaded, filenameMode, customFilename)
 
   function typeLabel(type: PackageType): string {
     return {
@@ -157,11 +250,35 @@
 
   function typeBadgeClass(type: PackageType): string {
     return {
-      brew: 'border-sky-200 bg-sky-50 text-sky-800',
+      brew: 'border-[var(--brand-border)] bg-[var(--brand-soft)] text-[#2b6f8f]',
       cask: 'border-violet-200 bg-violet-50 text-violet-800',
       tap: 'border-amber-200 bg-amber-50 text-amber-800',
       mas: 'border-emerald-200 bg-emerald-50 text-emerald-800',
     }[type]
+  }
+
+  function compareText(a: string, b: string): number {
+    return selectedPackageCollator.compare(a, b) || a.localeCompare(b)
+  }
+
+  function compareSelectedPackages(a: PickerPackage, b: PickerPackage): number {
+    return selectedPackageTypeOrder[a.type] - selectedPackageTypeOrder[b.type] || compareText(a.token, b.token)
+  }
+
+  function formatLocalDateTime(value: string): string {
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) {
+      return value
+    }
+
+    return new Intl.DateTimeFormat(undefined, {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZoneName: 'short',
+    }).format(date)
   }
 
   function changePreset(event: Event) {
@@ -179,15 +296,25 @@
     liveMessage = `${formatLocalText(nextPreset.name)} ${t('preset.changed')}`
   }
 
-  function addSearchResult(result: PackageSearchResult) {
+  function toggleSearchResult(result: PackageSearchResult) {
     startNewWorkFromCurrentState()
-    pickerState = upsertPackage(pickerState, {
-      type: result.type,
-      token: result.token,
-      selected: true,
-      source: result.inPreset ? 'preset' : 'manual',
-    })
-    liveMessage = `${result.token} ${t('live.selected')}`
+    if (result.selected) {
+      const candidateKeys = [
+        packageKey(result),
+        ...result.aliases.map((alias) => packageKey({ type: result.type, token: alias })),
+      ]
+      const selectedKey = candidateKeys.find((candidateKey) => selectedPackageKeys.has(candidateKey)) ?? packageKey(result)
+      pickerState = setPackageSelected(pickerState, selectedKey, false)
+      liveMessage = `${result.token} ${t('live.removed')}`
+    } else {
+      pickerState = upsertPackage(pickerState, {
+        type: result.type,
+        token: result.token,
+        selected: true,
+        source: result.inPreset ? 'preset' : 'manual',
+      })
+      liveMessage = `${result.token} ${t('live.selected')}`
+    }
     shareUrl = ''
     shareMessage = ''
   }
@@ -211,27 +338,105 @@
     shareMessage = ''
   }
 
-  async function copyText(text: string, label: string) {
+  function showCopied(target: CopyTarget) {
+    copiedTarget = target
+    if (copyStatusTimer !== undefined) {
+      window.clearTimeout(copyStatusTimer)
+    }
+    copyStatusTimer = window.setTimeout(() => {
+      copiedTarget = null
+      copyStatusTimer = undefined
+    }, 1600)
+  }
+
+  async function copyText(text: string, label: string, target: CopyTarget) {
     try {
       await navigator.clipboard.writeText(text)
+      showCopied(target)
       liveMessage = `${label} ${t('live.copied')}`
     } catch {
       liveMessage = t('live.copyFailed')
     }
   }
 
+  function saveDownloadFilenameSettings(loaded: boolean, mode: FilenameMode, customName: string) {
+    if (!loaded) {
+      return
+    }
+
+    globalThis.localStorage?.setItem(
+      downloadFilenameStorageKey,
+      JSON.stringify({ mode, customName } satisfies DownloadFilenameSettings),
+    )
+  }
+
+  function sanitizeDownloadFilename(value: string): string {
+    const unsafeFilenameCharacters = new Set(['<', '>', ':', '"', '/', '\\', '|', '?', '*'])
+    const withoutUnsafeCharacters = Array.from(value.trim(), (character) => {
+      return unsafeFilenameCharacters.has(character) || character.charCodeAt(0) < 32 ? '-' : character
+    }).join('')
+    const sanitized = withoutUnsafeCharacters
+      .trim()
+      .replace(/-+/g, '-')
+      .replace(/^[.\s-]+|[.\s-]+$/g, '')
+
+    return sanitized.length > 0 ? sanitized : 'Brewfile'
+  }
+
+  function createLocalTimestamp(date: Date): string {
+    const pad = (value: number) => String(value).padStart(2, '0')
+    return [
+      date.getFullYear(),
+      pad(date.getMonth() + 1),
+      pad(date.getDate()),
+      '-',
+      pad(date.getHours()),
+      pad(date.getMinutes()),
+      pad(date.getSeconds()),
+    ].join('')
+  }
+
+  function createDownloadFilename(): string {
+    if (filenameMode === 'plain') {
+      return 'Brewfile'
+    }
+
+    if (filenameMode === 'custom') {
+      return sanitizedCustomFilename
+    }
+
+    const timestamp = createLocalTimestamp(new Date())
+    const baseFilename = `Brewfile-${timestamp}`
+
+    if (baseFilename !== lastDownloadBaseFilename) {
+      lastDownloadBaseFilename = baseFilename
+      lastDownloadSequence = 1
+      return baseFilename
+    }
+
+    lastDownloadSequence += 1
+    return `${baseFilename}-${lastDownloadSequence}`
+  }
+
   function triggerBrewfileDownload() {
+    const filename = createDownloadFilename()
+    downloadedBrewfileFilename = filename
+    downloadedBrewfileFilenameMayCollide = filenameMode !== 'timestamp'
     const blob = new Blob([`${brewfilePreview}\n`], { type: 'application/octet-stream' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = 'Brewfile'
+    link.download = filename
     link.click()
     URL.revokeObjectURL(url)
     liveMessage = t('live.downloaded')
   }
 
   function downloadBrewfile() {
+    if (!canDownloadBrewfile) {
+      return
+    }
+
     if (disabledSelectedPackages.length > 0) {
       showDisabledDownloadDialog = true
       return
@@ -245,6 +450,11 @@
   }
 
   function confirmDisabledDownload() {
+    if (!canDownloadBrewfile) {
+      showDisabledDownloadDialog = false
+      return
+    }
+
     showDisabledDownloadDialog = false
     triggerBrewfileDownload()
   }
@@ -272,7 +482,17 @@
     liveMessage = t('storage.restored')
   }
 
+  function clearShareHashForEditedWork() {
+    if (!getShareValueFromHash(window.location.hash)) {
+      return
+    }
+
+    window.history.replaceState({}, '', `/p/${activePreset.id}`)
+    startupMessage = ''
+  }
+
   function startNewWorkFromCurrentState() {
+    clearShareHashForEditedWork()
     if (!pendingStoredState) {
       return
     }
@@ -305,7 +525,7 @@
     }
     shareMessage = messages.join(' ')
     if (shareUrl.length <= 8000) {
-      await copyText(shareUrl, t('share.url'))
+      await copyText(shareUrl, t('share.url'), 'share-url')
     }
   }
 
@@ -495,6 +715,11 @@
 
 <svelte:head>
   <title>{t('app.title')}</title>
+  <link
+    rel="stylesheet"
+    type="text/css"
+    href="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/devicon.min.css"
+  />
 </svelte:head>
 
 <svelte:window
@@ -505,49 +730,108 @@
 />
 
 <main class="min-h-svh bg-stone-50 text-zinc-950">
-  <div class="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8">
-    <header class="flex flex-col gap-4 border-b border-zinc-200 pb-5 lg:flex-row lg:items-end lg:justify-between">
+  <div class="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-3 sm:px-6 lg:px-8">
+    <header class="flex flex-col gap-3 border-b border-zinc-200 pb-4 sm:flex-row sm:items-start sm:justify-between">
       <div class="max-w-3xl">
-        <p class="text-sm font-medium text-teal-700">{t('app.kicker')}</p>
-        <h1 class="mt-2 text-3xl font-semibold tracking-normal text-zinc-950 sm:text-4xl">
+        <h1 class="text-2xl font-semibold tracking-normal text-zinc-950 sm:text-3xl">
           {t('app.title')}
         </h1>
-        <p class="mt-3 max-w-2xl text-base leading-7 text-zinc-600">
+        <p class="mt-2 max-w-2xl text-sm leading-6 text-zinc-600">
           {t('app.description')}
         </p>
       </div>
-      <p class="text-xs text-zinc-500 lg:text-right">{indexStatusMessage}</p>
+      <div class="flex shrink-0 flex-col gap-1 sm:items-end sm:pt-1">
+        <div class="flex items-center gap-2">
+          <a
+            class="inline-flex h-7 w-7 items-center justify-center rounded-md text-xl text-zinc-700 outline-none transition hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50"
+            href={githubRepositoryUrl}
+            target="_blank"
+            rel="noreferrer"
+            aria-label="GitHub repositoryを開く"
+          >
+            <i class="devicon-github-original" aria-hidden="true"></i>
+          </a>
+          {#if shortCommitSha}
+            <a
+              class="font-mono text-xs text-zinc-600 underline-offset-2 hover:text-zinc-950 hover:underline"
+              href={commitUrl}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`Commit ${shortCommitSha}を開く`}
+            >
+              {shortCommitSha}
+            </a>
+          {/if}
+        </div>
+        {#if indexUpdatedMessage}
+          <p class="text-xs text-zinc-500 sm:text-right">{indexUpdatedMessage}</p>
+        {/if}
+        <p class="text-xs text-zinc-500 sm:text-right">{indexStatusMessage}</p>
+      </div>
     </header>
 
-    <section class="flex flex-col gap-2 sm:flex-row sm:items-center">
-      <label class="text-sm font-medium text-zinc-700" for="preset-select">{t('preset.select')}</label>
-      <select
-        id="preset-select"
-        class="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 sm:w-72"
-        value={activePreset.id}
-        onchange={changePreset}
-      >
-        {#each availablePresets as preset}
-          <option value={preset.id}>{formatLocalText(preset.name)}</option>
-        {/each}
-      </select>
+    <section class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+      <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <label class="text-sm font-medium text-zinc-700" for="preset-select">{t('preset.select')}</label>
+        <select
+          id="preset-select"
+          class="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-soft)] sm:w-72"
+          value={activePreset.id}
+          onchange={changePreset}
+        >
+          {#each availablePresets as preset}
+            <option value={preset.id}>{formatLocalText(preset.name)}</option>
+          {/each}
+        </select>
+      </div>
+
+      <div class="flex min-w-0 flex-col gap-2 lg:flex-row lg:items-center lg:justify-end">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <label class="text-sm font-medium text-zinc-700" for="filename-mode">{t('filename.title')}</label>
+          <select
+            id="filename-mode"
+            class="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-soft)] sm:w-56"
+            bind:value={filenameMode}
+          >
+            <option value="timestamp">{t('filename.timestamp')}</option>
+            <option value="plain">{t('filename.plain')}</option>
+            <option value="custom">{t('filename.custom')}</option>
+          </select>
+        </div>
+        {#if filenameMode === 'custom'}
+          <input
+            class="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-soft)] lg:w-52"
+            aria-label={t('filename.customLabel')}
+            placeholder={t('filename.customPlaceholder')}
+            bind:value={customFilename}
+          />
+        {/if}
+        <p class="min-w-0 text-xs text-zinc-500">
+          {t('filename.preview')}
+          <span class="ml-1 font-mono text-zinc-800">{downloadFilenamePreview}</span>
+        </p>
+        {#if downloadFilenameError}
+          <p class="text-sm text-amber-700">{downloadFilenameError}</p>
+        {/if}
+      </div>
     </section>
 
     {#if startupMessage || pendingStoredState}
-      <section class="flex flex-col gap-3 rounded-md border border-teal-200 bg-teal-50 p-4 text-sm text-teal-950 sm:flex-row sm:items-center sm:justify-between">
+      <section class="flex flex-col gap-3 rounded-md border border-[var(--brand-border)] bg-[var(--brand-soft)] p-4 text-sm text-[var(--brand-ink)] sm:flex-row sm:items-center sm:justify-between">
         <p>{pendingStoredState ? t('storage.available') : startupMessage}</p>
         {#if pendingStoredState}
           <div class="flex gap-2">
             <button
               type="button"
-              class="rounded-md bg-teal-700 px-3 py-1.5 text-sm font-medium text-white"
+              data-button-variant="primary"
+              class="rounded-md px-3 py-1.5 text-sm font-medium transition"
               onclick={restorePendingState}
             >
               {t('storage.restore')}
             </button>
             <button
               type="button"
-              class="rounded-md border border-teal-300 px-3 py-1.5 text-sm font-medium text-teal-950"
+              class="rounded-md border border-[var(--brand-border-strong)] px-3 py-1.5 text-sm font-medium text-[var(--brand-ink)] transition hover:bg-white/60"
               onclick={discardPendingState}
             >
               {t('storage.discard')}
@@ -558,7 +842,7 @@
     {/if}
 
     <div class="grid gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.85fr)]">
-      <section class="flex flex-col gap-5">
+      <section class="flex min-w-0 flex-col gap-5">
         <section class="rounded-md border border-zinc-200 bg-white shadow-sm">
           <div class="border-b border-zinc-200 px-4 py-3">
             <h2 class="text-base font-semibold text-zinc-950">{t('search.title')}</h2>
@@ -567,7 +851,7 @@
             <label class="block">
               <span class="text-sm font-medium text-zinc-700">{t('search.label')}</span>
               <input
-                class="mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                class="mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-soft)]"
                 type="search"
                 placeholder={t('search.placeholder')}
                 bind:value={searchQuery}
@@ -579,33 +863,47 @@
             {:else if searchQuery.trim().length >= 2 && searchResults.length === 0}
               <p class="mt-3 text-sm text-zinc-500">{t('search.empty')}</p>
             {:else if searchResults.length > 0}
-              <ul class="mt-4 divide-y divide-zinc-100 rounded-md border border-zinc-200">
+              <ul class="mt-4 space-y-2">
                 {#each searchResults as result}
-                  <li class="flex items-start gap-3 px-3 py-3">
-                    <div class="min-w-0 flex-1">
-                      <div class="flex flex-wrap items-center gap-2">
-                        <p class="truncate text-sm font-medium text-zinc-950">{result.token}</p>
-                        <span class={`rounded border px-1.5 py-0.5 text-[11px] font-medium ${typeBadgeClass(result.type)}`}>
-                          {typeLabel(result.type)}
-                        </span>
-                        {#if result.inPreset}
-                          <span class="rounded border border-teal-200 bg-teal-50 px-1.5 py-0.5 text-[11px] font-medium text-teal-800">
-                            {t('search.inPreset')}
-                          </span>
-                        {/if}
-                      </div>
-                      <p class="mt-1 text-sm text-zinc-600">{result.title}</p>
-                      {#if result.description}
-                        <p class="mt-1 line-clamp-2 text-xs leading-5 text-zinc-500">{result.description}</p>
-                      {/if}
-                    </div>
+                  <li>
                     <button
                       type="button"
-                      class="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={result.selected}
-                      onclick={() => addSearchResult(result)}
+                      data-hover-motion="calm"
+                      class={`group flex w-full items-start gap-3 rounded-md border bg-white px-3 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 ${
+                        result.selected
+                          ? 'border-zinc-200 hover:border-red-500 hover:bg-red-50/40'
+                          : 'border-zinc-200 hover:border-[var(--brand)] hover:bg-[#f4fbfd]'
+                      }`}
+                      aria-label={`${result.token} ${result.selected ? t('selected.remove') : t('search.add')}`}
+                      aria-pressed={result.selected}
+                      onclick={() => toggleSearchResult(result)}
                     >
-                      {result.selected ? t('search.selected') : t('search.add')}
+                      <span class="min-w-0 flex-1">
+                        <span class="flex flex-wrap items-center gap-2">
+                          <span class="truncate text-sm font-medium text-zinc-950">{result.token}</span>
+                          <span class={`rounded border px-1.5 py-0.5 text-[11px] font-medium ${typeBadgeClass(result.type)}`}>
+                            {typeLabel(result.type)}
+                          </span>
+                          {#if result.inPreset}
+                            <span class="rounded border border-[var(--brand-border)] bg-[var(--brand-soft)] px-1.5 py-0.5 text-[11px] font-medium text-[#2b6f8f]">
+                              {t('search.inPreset')}
+                            </span>
+                          {/if}
+                        </span>
+                        <span class="mt-1 block text-sm text-zinc-600">{result.title}</span>
+                        {#if result.description}
+                          <span class="mt-1 block line-clamp-2 text-xs leading-5 text-zinc-500">{result.description}</span>
+                        {/if}
+                      </span>
+                      <span
+                        class={`shrink-0 rounded-md border px-3 py-1.5 text-sm font-medium text-zinc-800 ${
+                          result.selected
+                            ? 'border-zinc-300 group-hover:border-red-500 group-hover:text-red-700'
+                            : 'border-zinc-300 group-hover:border-[var(--brand)] group-hover:text-[var(--brand-strong)]'
+                        }`}
+                      >
+                        {result.selected ? t('search.selected') : t('search.add')}
+                      </span>
                     </button>
                   </li>
                 {/each}
@@ -637,7 +935,8 @@
                 <div class="mt-3 flex gap-2">
                   <button
                     type="button"
-                    class="rounded-md bg-teal-700 px-3 py-1.5 text-sm font-medium text-white"
+                    data-button-variant="primary"
+                    class="rounded-md px-3 py-1.5 text-sm font-medium transition"
                     onclick={() => applyImport('replace')}
                   >
                     {t('import.replace')}
@@ -664,7 +963,7 @@
               <label class="block">
                 <span class="text-sm font-medium text-zinc-700">{t('advanced.type')}</span>
                 <select
-                  class="mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                  class="mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-soft)]"
                   bind:value={advancedType}
                 >
                   {#each advancedTypes as type}
@@ -677,7 +976,7 @@
                   {advancedType === 'mas' ? t('advanced.name') : t('advanced.token')}
                 </span>
                 <input
-                  class="mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                  class="mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-soft)]"
                   placeholder={advancedType === 'raw' ? 'vscode "svelte.svelte-vscode"' : 'node'}
                   bind:value={advancedToken}
                 />
@@ -687,7 +986,7 @@
               <label class="block">
                 <span class="text-sm font-medium text-zinc-700">{t('advanced.masId')}</span>
                 <input
-                  class="mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                  class="mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-soft)]"
                   inputmode="numeric"
                   placeholder="497799835"
                   bind:value={advancedMasId}
@@ -699,77 +998,116 @@
             {/if}
             <button
               type="button"
-              class="rounded-md bg-teal-700 px-3 py-1.5 text-sm font-medium text-white"
+              data-button-variant="primary"
+              class="rounded-md px-3 py-1.5 text-sm font-medium transition"
               onclick={addAdvancedItem}
             >
               {t('advanced.add')}
             </button>
           </div>
         </details>
+
+        <section class="rounded-md border border-[var(--brand-border)] bg-[var(--brand-soft)] p-4 text-sm leading-6 text-[var(--brand-ink)]">
+          <p class="font-medium">{t('privacy.title')}</p>
+          <p class="mt-1">{t('privacy.browserOnly')}</p>
+        </section>
       </section>
 
-      <aside class="flex flex-col gap-4">
+      <aside class="flex min-w-0 flex-col gap-4">
         <section class="rounded-md border border-zinc-200 bg-white shadow-sm">
-          <div class="flex items-center justify-between gap-3 border-b border-zinc-200 px-4 py-3">
-            <h2 class="text-base font-semibold text-zinc-950">
-              {t('selected.title')}
-              <span class="ml-2 text-sm font-normal text-zinc-500">{selectedPackages.length}</span>
-            </h2>
-            <div class="flex shrink-0 gap-2">
+          <div class="flex flex-col gap-3 border-b border-zinc-200 px-4 py-3">
+            <div class="flex items-center justify-between gap-3">
+              <h2 class="text-base font-semibold text-zinc-950">
+                {t('selected.title')}
+                <span class="ml-2 text-sm font-normal text-zinc-500">{selectedPackages.length}</span>
+              </h2>
               <button
                 type="button"
-                class="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={brewfilePreview.length === 0}
-                onclick={() => copyText(brewfilePreview, 'Brewfile')}
+                class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-zinc-300 text-zinc-700 outline-none transition hover:border-zinc-400 hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2"
+                aria-controls="selected-package-list"
+                aria-expanded={!isSelectedListCollapsed}
+                aria-label={isSelectedListCollapsed ? t('selected.expand') : t('selected.collapse')}
+                title={isSelectedListCollapsed ? t('selected.expand') : t('selected.collapse')}
+                onclick={() => {
+                  isSelectedListCollapsed = !isSelectedListCollapsed
+                }}
               >
-                {t('brewfile.copy')}
+                {#if isSelectedListCollapsed}
+                  <ChevronDown class="h-4 w-4" aria-hidden="true" />
+                {:else}
+                  <ChevronUp class="h-4 w-4" aria-hidden="true" />
+                {/if}
+              </button>
+            </div>
+            <div class="grid w-full gap-2" style="grid-template-columns: minmax(0, 1.2fr) minmax(7rem, 0.8fr);">
+              <button
+                type="button"
+                class="inline-flex min-w-0 items-center justify-center gap-2 rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-800 outline-none transition hover:border-zinc-400 hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={selectedPackages.length === 0 && pickerState.passthrough.length === 0}
+                onclick={createAndCopyShareUrl}
+              >
+                {#if copiedTarget === 'share-url'}
+                  <Check class="h-4 w-4 text-emerald-700" aria-hidden="true" />
+                  <span class="text-emerald-700">Copied!</span>
+                {:else}
+                  <Link class="h-4 w-4" aria-hidden="true" />
+                  <span class="whitespace-nowrap">{t('share.create')}</span>
+                {/if}
               </button>
               <button
                 type="button"
-                class="rounded-md bg-teal-700 px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={brewfilePreview.length === 0}
+                data-button-variant="primary"
+                class="min-w-0 rounded-md px-3 py-1.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!canDownloadBrewfile}
                 onclick={downloadBrewfile}
               >
                 {t('brewfile.download')}
               </button>
             </div>
           </div>
-          {#if selectedPackages.length === 0 && pickerState.passthrough.length === 0}
-            <p class="p-4 text-sm text-zinc-500">{t('selected.empty')}</p>
-          {:else}
-            <ul class="max-h-64 divide-y divide-zinc-100 overflow-auto">
-              {#each selectedPackages as pkg}
-                <li class="flex items-center gap-3 px-4 py-2.5">
-                  <span class={`rounded border px-1.5 py-0.5 text-[11px] font-medium ${typeBadgeClass(pkg.type)}`}>
-                    {typeLabel(pkg.type)}
-                  </span>
-                  <span class="min-w-0 flex-1 truncate text-sm text-zinc-900">{pkg.token}</span>
-                  <button
-                    type="button"
-                    class="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium text-zinc-700"
-                    onclick={() => removeSelectedPackage(pkg)}
-                  >
-                    {t('selected.remove')}
-                  </button>
-                </li>
-              {/each}
-              {#each pickerState.passthrough as entry}
-                <li class="flex items-center gap-3 px-4 py-2.5">
-                  <span class="rounded border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[11px] font-medium text-zinc-700">
-                    raw
-                  </span>
-                  <span class="min-w-0 flex-1 truncate font-mono text-sm text-zinc-900">{entry.line}</span>
-                  <button
-                    type="button"
-                    class="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium text-zinc-700"
-                    onclick={() => removePassthroughEntry(entry.id)}
-                  >
-                    {t('selected.remove')}
-                  </button>
-                </li>
-              {/each}
-            </ul>
+          {#if shareMessage}
+            <p class="border-b border-zinc-100 px-4 py-2 text-sm leading-6 text-amber-700">{shareMessage}</p>
           {/if}
+          <div id="selected-package-list" hidden={isSelectedListCollapsed}>
+            {#if selectedPackages.length === 0 && pickerState.passthrough.length === 0}
+              <p class="p-4 text-sm text-zinc-500">{t('selected.empty')}</p>
+            {:else}
+              <ul class="max-h-64 divide-y divide-zinc-100 overflow-auto">
+                {#each sortedSelectedPackages as pkg}
+                  <li class="flex items-center gap-3 px-4 py-2.5">
+                    <span class={`rounded border px-1.5 py-0.5 text-[11px] font-medium ${typeBadgeClass(pkg.type)}`}>
+                      {typeLabel(pkg.type)}
+                    </span>
+                    <span class="min-w-0 flex-1 truncate text-sm text-zinc-900">{pkg.token}</span>
+                    <button
+                      type="button"
+                      data-hover-motion="calm"
+                      class="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium text-zinc-700 transition hover:border-red-500"
+                      onclick={() => removeSelectedPackage(pkg)}
+                    >
+                      {t('selected.remove')}
+                    </button>
+                  </li>
+                {/each}
+                {#each sortedPassthroughEntries as entry}
+                  <li class="flex items-center gap-3 px-4 py-2.5">
+                    <span class="rounded border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[11px] font-medium text-zinc-700">
+                      raw
+                    </span>
+                    <span class="min-w-0 flex-1 truncate font-mono text-sm text-zinc-900">{entry.line}</span>
+                    <button
+                      type="button"
+                      data-hover-motion="calm"
+                      class="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium text-zinc-700 transition hover:border-red-500"
+                      onclick={() => removePassthroughEntry(entry.id)}
+                    >
+                      {t('selected.remove')}
+                    </button>
+                  </li>
+                {/each}
+              </ul>
+            {/if}
+          </div>
         </section>
 
         {#if selectedWarningRows.length > 0}
@@ -789,73 +1127,107 @@
         {/if}
 
         <section class="rounded-md border border-zinc-200 bg-white p-4 shadow-sm">
-          <div class="flex items-center justify-between gap-3">
-            <h2 class="text-base font-semibold text-zinc-950">{t('share.title')}</h2>
-            <button
-              type="button"
-              class="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-800"
-              onclick={createAndCopyShareUrl}
-            >
-              {t('share.create')}
-            </button>
-          </div>
-          {#if shareUrl}
-            <input
-              class="mt-3 w-full rounded-md border border-zinc-300 bg-zinc-50 px-3 py-2 text-xs text-zinc-700"
-              readonly
-              value={shareUrl}
-              aria-label={t('share.url')}
-            />
-          {/if}
-          {#if shareMessage}
-            <p class="mt-2 text-sm leading-6 text-amber-700">{shareMessage}</p>
-          {/if}
-        </section>
-
-        <section class="rounded-md border border-zinc-200 bg-white p-4 shadow-sm">
           <h2 class="text-base font-semibold text-zinc-950">{t('install.title')}</h2>
           <div class="mt-3 space-y-3">
             <div>
-              <div class="flex items-center justify-between gap-3">
-                <p class="text-sm font-medium text-zinc-700">{t('install.homebrew')}</p>
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <p class="text-sm font-medium text-zinc-800">{t('install.homebrew')}</p>
+                  <p class="mt-0.5 text-xs leading-5 text-zinc-500">{t('install.homebrewNote')}</p>
+                </div>
                 <button
                   type="button"
-                  class="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium text-zinc-700"
-                  onclick={() => copyText(installHomebrewCommand, t('install.homebrew'))}
+                  class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-zinc-300 text-zinc-700 outline-none transition hover:border-zinc-400 hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2"
+                  title={t('brewfile.copy')}
+                  aria-label={`${t('install.homebrew')}をコピー`}
+                  onclick={() => copyText(installHomebrewCommand, t('install.homebrew'), 'install-homebrew')}
                 >
-                  {t('brewfile.copy')}
+                  {#if copiedTarget === 'install-homebrew'}
+                    <Check class="h-4 w-4 text-emerald-700" aria-hidden="true" />
+                  {:else}
+                    <Clipboard class="h-4 w-4" aria-hidden="true" />
+                  {/if}
                 </button>
               </div>
+              {#if copiedTarget === 'install-homebrew'}
+                <p class="mt-1 text-right text-xs font-medium text-emerald-700">Copied!</p>
+              {/if}
               <pre class="mt-2 overflow-auto rounded-md bg-zinc-950 p-3 text-xs leading-5 text-zinc-50"><code>{installHomebrewCommand}</code></pre>
             </div>
-            <div>
-              <div class="flex items-center justify-between gap-3">
-                <p class="text-sm font-medium text-zinc-700">{t('install.bundle')}</p>
-                <button
-                  type="button"
-                  class="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium text-zinc-700"
-                  onclick={() => copyText(runBrewBundleCommand, t('install.bundle'))}
-                >
-                  {t('brewfile.copy')}
-                </button>
+            <div class="border-t border-zinc-100 pt-3">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <p class="text-sm font-medium text-zinc-800">{t('install.bundle')}</p>
+                  <p class="mt-0.5 text-xs leading-5 text-zinc-500">{installBundleNote}</p>
+                </div>
+                {#if downloadedBrewfileFilename}
+                  <button
+                    type="button"
+                    class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-zinc-300 text-zinc-700 outline-none transition hover:border-zinc-400 hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2"
+                    title={t('brewfile.copy')}
+                    aria-label={`${t('install.bundle')}をコピー`}
+                    onclick={() => copyText(runBrewBundleCommand, t('install.bundle'), 'install-bundle')}
+                  >
+                    {#if copiedTarget === 'install-bundle'}
+                      <Check class="h-4 w-4 text-emerald-700" aria-hidden="true" />
+                    {:else}
+                      <Clipboard class="h-4 w-4" aria-hidden="true" />
+                    {/if}
+                  </button>
+                {/if}
               </div>
-              <pre class="mt-2 overflow-auto rounded-md bg-zinc-950 p-3 text-xs leading-5 text-zinc-50"><code>{runBrewBundleCommand}</code></pre>
+              {#if copiedTarget === 'install-bundle'}
+                <p class="mt-1 text-right text-xs font-medium text-emerald-700">Copied!</p>
+              {/if}
+              {#if downloadedBrewfileFilename}
+                <pre class="mt-2 overflow-auto rounded-md bg-zinc-950 p-3 text-xs leading-5 text-zinc-50"><code>{runBrewBundleCommand}</code></pre>
+              {/if}
             </div>
           </div>
         </section>
 
-        <section class="rounded-md border border-teal-200 bg-teal-50 p-4 text-sm leading-6 text-teal-950">
-          <p class="font-medium">{t('privacy.title')}</p>
-          <p class="mt-1">{t('privacy.browserOnly')}</p>
-        </section>
       </aside>
     </div>
+
+    <footer class="space-y-1 border-t border-zinc-200 pt-4 pb-2 text-xs text-zinc-500">
+      <p>
+        {t('footer.homebrewThanksBefore')}
+        <a
+          class="underline-offset-2 transition hover:text-[var(--brand-strong)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50"
+          href={homebrewUrl}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Homebrew
+        </a>
+        {t('footer.homebrewThanksAfter')}
+      </p>
+      <nav class="flex flex-wrap items-center gap-x-2 gap-y-1" aria-label="Legal links">
+        <a
+          class="underline-offset-2 transition hover:text-[var(--brand-strong)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50"
+          href={licenseUrl}
+          target="_blank"
+          rel="noreferrer"
+        >
+          {t('footer.licenseMit')}
+        </a>
+        <span aria-hidden="true">·</span>
+        <a
+          class="underline-offset-2 transition hover:text-[var(--brand-strong)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50"
+          href={thirdPartyNoticesUrl}
+          target="_blank"
+          rel="noreferrer"
+        >
+          {t('footer.notices')}
+        </a>
+      </nav>
+    </footer>
 
     <p class="sr-only" aria-live="polite">{liveMessage}</p>
   </div>
 
   {#if isDragActive}
-    <div class="fixed inset-0 z-50 grid place-items-center border-4 border-teal-500 bg-teal-950/25 p-6">
+    <div class="fixed inset-0 z-50 grid place-items-center border-4 border-[var(--brand)] bg-[#143d4e]/25 p-6">
       <div class="rounded-md bg-white px-5 py-4 text-base font-semibold text-zinc-950 shadow-lg">
         {t('drop.title')}
       </div>
@@ -889,7 +1261,8 @@
           </button>
           <button
             type="button"
-            class="rounded-md bg-teal-700 px-3 py-1.5 text-sm font-medium text-white"
+            data-button-variant="primary"
+            class="rounded-md px-3 py-1.5 text-sm font-medium transition"
             onclick={confirmDisabledDownload}
           >
             {t('download.continue')}

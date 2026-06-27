@@ -50,6 +50,8 @@ jobs:
         run: npm run lint
 
       - name: Build
+        env:
+          VITE_COMMIT_SHA: ${{ github.sha }}
         run: npm run build
 
       - name: Ensure Cloudflare Pages project exists
