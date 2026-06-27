@@ -38,7 +38,8 @@ Use this before publishing the MVP.
 - [x] `public/package-index.json` is ignored by Git.
 - [x] Homebrew raw JSON is not committed.
 - [x] Fixture CI does not call Homebrew APIs.
-- [x] Deploy workflow generates the real package index before build.
+- [x] Push deploys reuse the published package index instead of calling Homebrew APIs.
+- [x] Scheduled and manual deploys generate the real package index before build.
 - [x] Package index size check warns above 10 MiB and fails above 20 MiB.
 - [x] Preset validation accepts formula aliases such as `python`.
 

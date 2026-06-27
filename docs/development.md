@@ -68,7 +68,7 @@ The app is hosted on Cloudflare Pages:
 https://brewfile-picker.pages.dev
 ```
 
-The deploy workflow generates `public/package-index.json`, validates it, builds `dist/`, and deploys that artifact to Cloudflare Pages. See [deploy.md](deploy.md).
+The deploy workflow prepares `public/package-index.json`, validates it, builds `dist/`, and deploys that artifact to Cloudflare Pages. See [deploy.md](deploy.md).
 
 Configure these GitHub repository secrets before enabling deployment:
 

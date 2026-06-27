@@ -45,7 +45,17 @@ npm run test:e2e
 
 `.github/workflows/deploy.yml` runs on `main`, daily schedule, and manual dispatch.
 
-It uses live Homebrew metadata:
+On ordinary pushes to `main`, it reuses the package index that is already published:
+
+```sh
+curl --fail --silent --show-error --location \
+  https://brewfile-picker.pages.dev/package-index.json \
+  --output public/package-index.json
+```
+
+This keeps regular app and documentation deploys from calling the live Homebrew APIs.
+
+On scheduled and manually dispatched deploys, it refreshes the index from live Homebrew metadata:
 
 ```sh
 npm run update:index
