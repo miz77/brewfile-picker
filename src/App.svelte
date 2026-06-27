@@ -279,15 +279,25 @@
     liveMessage = `${formatLocalText(nextPreset.name)} ${t('preset.changed')}`
   }
 
-  function addSearchResult(result: PackageSearchResult) {
+  function toggleSearchResult(result: PackageSearchResult) {
     startNewWorkFromCurrentState()
-    pickerState = upsertPackage(pickerState, {
-      type: result.type,
-      token: result.token,
-      selected: true,
-      source: result.inPreset ? 'preset' : 'manual',
-    })
-    liveMessage = `${result.token} ${t('live.selected')}`
+    if (result.selected) {
+      const candidateKeys = [
+        packageKey(result),
+        ...result.aliases.map((alias) => packageKey({ type: result.type, token: alias })),
+      ]
+      const selectedKey = candidateKeys.find((candidateKey) => selectedPackageKeys.has(candidateKey)) ?? packageKey(result)
+      pickerState = setPackageSelected(pickerState, selectedKey, false)
+      liveMessage = `${result.token} ${t('live.removed')}`
+    } else {
+      pickerState = upsertPackage(pickerState, {
+        type: result.type,
+        token: result.token,
+        selected: true,
+        source: result.inPreset ? 'preset' : 'manual',
+      })
+      liveMessage = `${result.token} ${t('live.selected')}`
+    }
     shareUrl = ''
     shareMessage = ''
   }
@@ -836,33 +846,47 @@
             {:else if searchQuery.trim().length >= 2 && searchResults.length === 0}
               <p class="mt-3 text-sm text-zinc-500">{t('search.empty')}</p>
             {:else if searchResults.length > 0}
-              <ul class="mt-4 divide-y divide-zinc-100 rounded-md border border-zinc-200">
+              <ul class="mt-4 space-y-2">
                 {#each searchResults as result}
-                  <li class="flex items-start gap-3 px-3 py-3">
-                    <div class="min-w-0 flex-1">
-                      <div class="flex flex-wrap items-center gap-2">
-                        <p class="truncate text-sm font-medium text-zinc-950">{result.token}</p>
-                        <span class={`rounded border px-1.5 py-0.5 text-[11px] font-medium ${typeBadgeClass(result.type)}`}>
-                          {typeLabel(result.type)}
-                        </span>
-                        {#if result.inPreset}
-                          <span class="rounded border border-[var(--brand-border)] bg-[var(--brand-soft)] px-1.5 py-0.5 text-[11px] font-medium text-[#2b6f8f]">
-                            {t('search.inPreset')}
-                          </span>
-                        {/if}
-                      </div>
-                      <p class="mt-1 text-sm text-zinc-600">{result.title}</p>
-                      {#if result.description}
-                        <p class="mt-1 line-clamp-2 text-xs leading-5 text-zinc-500">{result.description}</p>
-                      {/if}
-                    </div>
+                  <li>
                     <button
                       type="button"
-                      class="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={result.selected}
-                      onclick={() => addSearchResult(result)}
+                      data-hover-motion="calm"
+                      class={`group flex w-full items-start gap-3 rounded-md border bg-white px-3 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 ${
+                        result.selected
+                          ? 'border-zinc-200 hover:border-red-500 hover:bg-red-50/40'
+                          : 'border-zinc-200 hover:border-[var(--brand)] hover:bg-[#f4fbfd]'
+                      }`}
+                      aria-label={`${result.token} ${result.selected ? t('selected.remove') : t('search.add')}`}
+                      aria-pressed={result.selected}
+                      onclick={() => toggleSearchResult(result)}
                     >
-                      {result.selected ? t('search.selected') : t('search.add')}
+                      <span class="min-w-0 flex-1">
+                        <span class="flex flex-wrap items-center gap-2">
+                          <span class="truncate text-sm font-medium text-zinc-950">{result.token}</span>
+                          <span class={`rounded border px-1.5 py-0.5 text-[11px] font-medium ${typeBadgeClass(result.type)}`}>
+                            {typeLabel(result.type)}
+                          </span>
+                          {#if result.inPreset}
+                            <span class="rounded border border-[var(--brand-border)] bg-[var(--brand-soft)] px-1.5 py-0.5 text-[11px] font-medium text-[#2b6f8f]">
+                              {t('search.inPreset')}
+                            </span>
+                          {/if}
+                        </span>
+                        <span class="mt-1 block text-sm text-zinc-600">{result.title}</span>
+                        {#if result.description}
+                          <span class="mt-1 block line-clamp-2 text-xs leading-5 text-zinc-500">{result.description}</span>
+                        {/if}
+                      </span>
+                      <span
+                        class={`shrink-0 rounded-md border px-3 py-1.5 text-sm font-medium text-zinc-800 ${
+                          result.selected
+                            ? 'border-zinc-300 group-hover:border-red-500 group-hover:text-red-700'
+                            : 'border-zinc-300 group-hover:border-[var(--brand)] group-hover:text-[var(--brand-strong)]'
+                        }`}
+                      >
+                        {result.selected ? t('search.selected') : t('search.add')}
+                      </span>
                     </button>
                   </li>
                 {/each}
@@ -1040,7 +1064,8 @@
                     <span class="min-w-0 flex-1 truncate text-sm text-zinc-900">{pkg.token}</span>
                     <button
                       type="button"
-                      class="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium text-zinc-700"
+                      data-hover-motion="calm"
+                      class="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium text-zinc-700 transition hover:border-red-500"
                       onclick={() => removeSelectedPackage(pkg)}
                     >
                       {t('selected.remove')}
@@ -1055,7 +1080,8 @@
                     <span class="min-w-0 flex-1 truncate font-mono text-sm text-zinc-900">{entry.line}</span>
                     <button
                       type="button"
-                      class="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium text-zinc-700"
+                      data-hover-motion="calm"
+                      class="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium text-zinc-700 transition hover:border-red-500"
                       onclick={() => removePassthroughEntry(entry.id)}
                     >
                       {t('selected.remove')}

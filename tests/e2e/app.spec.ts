@@ -20,11 +20,7 @@ async function openAdvancedAdd(page: Page) {
 }
 
 async function removeSelectedPackage(page: Page, token: string) {
-  await page
-    .getByRole('listitem')
-    .filter({ hasText: token })
-    .getByRole('button', { name: '解除' })
-    .click()
+  await selectedItem(page, token).getByRole('button', { name: '解除' }).click()
 }
 
 function selectedItem(page: Page, token: string) {
@@ -158,11 +154,16 @@ test('opens the lab preset and updates selection', async ({ page }) => {
   await page.getByRole('button', { name: '選択中の項目を展開' }).click()
   await expect(selectedItem(page, 'git')).toBeVisible()
 
+  await page.getByRole('searchbox').fill('git')
+  await page.getByRole('button', { name: 'git 解除' }).click()
+  await expect(selectedItem(page, 'git')).toHaveCount(0)
+  await page.getByRole('button', { name: 'git 追加' }).click()
+  await expect(selectedItem(page, 'git')).toBeVisible()
   await removeSelectedPackage(page, 'git')
   await expect(selectedItem(page, 'git')).toHaveCount(0)
 
   await page.getByRole('searchbox').fill('zotero')
-  await page.getByRole('button', { name: '追加' }).first().click()
+  await page.getByRole('button', { name: 'zotero 追加' }).click()
   await expect(selectedItem(page, 'zotero')).toBeVisible()
 
   expect(externalRequests).toEqual([])

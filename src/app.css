@@ -76,6 +76,12 @@ button[data-button-variant='primary']:not(:disabled):active {
   box-shadow: 0 2px 6px rgb(15 23 42 / 0.08);
 }
 
+button[data-hover-motion='calm']:not(:disabled):hover,
+button[data-hover-motion='calm']:not(:disabled):active {
+  transform: none;
+  box-shadow: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   button:not(:disabled),
   button:not(:disabled):hover,
