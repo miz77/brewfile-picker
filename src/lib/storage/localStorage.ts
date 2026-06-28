@@ -10,7 +10,7 @@ const StoredPackageSchema = v.object({
   selected: v.boolean(),
   source: v.union([v.literal('preset'), v.literal('manual'), v.literal('import')]),
   order: v.number(),
-  masId: v.optional(v.number()),
+  masId: v.optional(v.union([v.string(), v.number()])),
 })
 
 const StoredPassthroughSchema = v.object({
@@ -28,9 +28,37 @@ const StoredPickerStateSchema = v.object({
   passthrough: v.array(StoredPassthroughSchema),
 })
 
-export type StoredPickerState = v.InferOutput<typeof StoredPickerStateSchema>
+type ParsedStoredPackage = v.InferOutput<typeof StoredPackageSchema>
+type ParsedStoredPickerState = v.InferOutput<typeof StoredPickerStateSchema>
 
-function compactPackage(pkg: PickerPackage): v.InferOutput<typeof StoredPackageSchema> {
+type StoredPackage = Omit<ParsedStoredPackage, 'masId'> & {
+  masId?: string
+}
+
+export type StoredPickerState = Omit<ParsedStoredPickerState, 'packages'> & {
+  packages: StoredPackage[]
+}
+
+function normalizeStoredMasId(masId: ParsedStoredPackage['masId']): string | undefined {
+  if (masId === undefined) {
+    return undefined
+  }
+
+  const normalized = String(masId).trim()
+  if (!/^[1-9]\d*$/.test(normalized)) {
+    throw new Error('Invalid stored MAS ID')
+  }
+  return normalized
+}
+
+function normalizeStoredPackage(pkg: ParsedStoredPackage): StoredPackage {
+  return {
+    ...pkg,
+    masId: normalizeStoredMasId(pkg.masId),
+  }
+}
+
+function compactPackage(pkg: PickerPackage): StoredPackage {
   return {
     type: pkg.type,
     token: pkg.token,
@@ -53,7 +81,11 @@ export function createStoredPickerState(state: PickerState, savedAt = new Date()
 }
 
 export function parseStoredPickerState(input: unknown): StoredPickerState {
-  return v.parse(StoredPickerStateSchema, input)
+  const parsed = v.parse(StoredPickerStateSchema, input)
+  return {
+    ...parsed,
+    packages: parsed.packages.map(normalizeStoredPackage),
+  }
 }
 
 export function restorePickerStateFromStored(preset: Preset, stored: StoredPickerState): PickerState {

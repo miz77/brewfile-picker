@@ -4,7 +4,7 @@ export type ParsedPackage = {
   type: PackageType
   token: string
   lineNumber: number
-  masId?: number
+  masId?: string
 }
 
 export type ParsedPassthrough = {
@@ -23,7 +23,7 @@ const SIMPLE_PACKAGE_PATTERNS: Array<[Extract<PackageType, 'tap' | 'brew' | 'cas
   ['brew', /^\s*brew\s+["']([^"'\n\r]+)["']\s*$/],
   ['cask', /^\s*cask\s+["']([^"'\n\r]+)["']\s*$/],
 ]
-const MAS_PATTERN = /^\s*mas\s+["']([^"'\n\r]+)["']\s*,\s*id:\s*(\d+)\s*$/
+const MAS_PATTERN = /^\s*mas\s+["']([^"'\n\r]+)["']\s*,\s*id:\s*([1-9]\d*)\s*$/
 
 function parsePackageLine(line: string, lineNumber: number): ParsedPackage | null {
   for (const [type, pattern] of SIMPLE_PACKAGE_PATTERNS) {
@@ -35,7 +35,7 @@ function parsePackageLine(line: string, lineNumber: number): ParsedPackage | nul
 
   const masMatch = line.match(MAS_PATTERN)
   if (masMatch?.[1] && masMatch[2]) {
-    return { type: 'mas', token: masMatch[1], masId: Number(masMatch[2]), lineNumber }
+    return { type: 'mas', token: masMatch[1], masId: masMatch[2], lineNumber }
   }
 
   return null
