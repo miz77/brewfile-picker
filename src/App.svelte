@@ -650,8 +650,8 @@
     }
 
     if (advancedType === 'mas') {
-      const masId = Number(advancedMasId)
-      if (!Number.isInteger(masId) || masId <= 0 || /["'\n\r]/.test(token)) {
+      const masId = advancedMasId.trim()
+      if (!/^[1-9]\d*$/.test(masId) || /["'\n\r]/.test(token)) {
         advancedError = t('advanced.invalidMas')
         return
       }

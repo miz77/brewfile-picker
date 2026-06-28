@@ -13,7 +13,7 @@ describe('exportBrewfile', () => {
         { type: 'brew', token: 'git', selected: true, source: 'preset', order: 1 },
         { type: 'tap', token: 'homebrew/services', selected: true, source: 'manual', order: Number.MAX_SAFE_INTEGER },
         { type: 'brew', token: 'node', selected: true, source: 'manual', order: Number.MAX_SAFE_INTEGER },
-        { type: 'mas', token: 'Xcode', selected: true, source: 'manual', order: Number.MAX_SAFE_INTEGER, masId: 497799835 },
+        { type: 'mas', token: 'Xcode', selected: true, source: 'manual', order: Number.MAX_SAFE_INTEGER, masId: '497799835' },
       ],
       passthrough: [{ id: 'raw-1', line: 'vscode "svelte.svelte-vscode"', source: 'import' }],
     }
@@ -44,5 +44,26 @@ describe('exportBrewfile', () => {
     }
 
     expect(exportBrewfile(state)).toBe('brew "git"')
+  })
+
+  it('exports MAS IDs outside JavaScript safe integer range without rounding', () => {
+    const state: PickerState = {
+      schemaVersion: 1,
+      basePresetId: 'lab-2026',
+      basePresetRevision: '2026-06-27',
+      packages: [
+        {
+          type: 'mas',
+          token: 'Huge',
+          selected: true,
+          source: 'manual',
+          order: Number.MAX_SAFE_INTEGER,
+          masId: '9007199254740993',
+        },
+      ],
+      passthrough: [],
+    }
+
+    expect(exportBrewfile(state)).toBe('mas "Huge", id: 9007199254740993')
   })
 })

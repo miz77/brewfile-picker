@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createPickerStateFromPreset, upsertPackage } from '../selection/state'
 import type { Preset } from '../schemas/preset'
-import { createStoredPickerState, restorePickerStateFromStored } from './localStorage'
+import { createStoredPickerState, parseStoredPickerState, restorePickerStateFromStored } from './localStorage'
 
 const preset: Preset = {
   id: 'lab-2026',
@@ -32,5 +32,27 @@ describe('stored picker state', () => {
 
     expect(stored.savedAt).toBe('2026-06-27T00:00:00.000Z')
     expect(restored.packages.filter((pkg) => pkg.selected).map((pkg) => pkg.token)).toEqual(['git', 'node'])
+  })
+
+  it('migrates numeric stored MAS IDs to strings', () => {
+    const stored = parseStoredPickerState({
+      schemaVersion: 1,
+      basePresetId: 'lab-2026',
+      basePresetRevision: '2026-06-27',
+      savedAt: '2026-06-27T00:00:00.000Z',
+      packages: [
+        {
+          type: 'mas',
+          token: 'Xcode',
+          selected: true,
+          source: 'manual',
+          order: Number.MAX_SAFE_INTEGER,
+          masId: 497799835,
+        },
+      ],
+      passthrough: [],
+    })
+
+    expect(stored.packages[0].masId).toBe('497799835')
   })
 })

@@ -13,7 +13,7 @@ export type PickerPackage = {
   presetId?: string
   sectionId?: string
   sectionName?: LocaleText
-  masId?: number
+  masId?: string
 }
 
 export type PassthroughEntry = {

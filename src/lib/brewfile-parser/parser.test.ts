@@ -16,9 +16,25 @@ describe('parseBrewfile', () => {
       { type: 'tap', token: 'homebrew/services', lineNumber: 1 },
       { type: 'brew', token: 'git', lineNumber: 2 },
       { type: 'cask', token: 'visual-studio-code', lineNumber: 3 },
-      { type: 'mas', token: 'Xcode', masId: 497799835, lineNumber: 4 },
+      { type: 'mas', token: 'Xcode', masId: '497799835', lineNumber: 4 },
     ])
     expect(parsed.passthrough).toEqual([])
+  })
+
+  it('preserves MAS IDs outside JavaScript safe integer range', () => {
+    const parsed = parseBrewfile('mas "Huge", id: 9007199254740993')
+
+    expect(parsed.packages).toEqual([
+      { type: 'mas', token: 'Huge', masId: '9007199254740993', lineNumber: 1 },
+    ])
+    expect(parsed.passthrough).toEqual([])
+  })
+
+  it('keeps MAS lines with non-positive IDs as passthrough', () => {
+    const parsed = parseBrewfile('mas "Zero", id: 0')
+
+    expect(parsed.packages).toEqual([])
+    expect(parsed.passthrough[0].line).toBe('mas "Zero", id: 0')
   })
 
   it('keeps option lines and their immediate comments as passthrough', () => {
